@@ -4,663 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Phone Numbers Admin</title>
-  <style>
-    :root {
-      --bg: #0f1419;
-      --bg-elevated: #171d25;
-      --bg-soft: #1e2630;
-      --border: #2a3441;
-      --border-strong: #3a4656;
-      --text: #e8eef5;
-      --text-muted: #8b9aab;
-      --text-faint: #627285;
-      --accent: #2dd4bf;
-      --accent-dim: rgba(45, 212, 191, 0.14);
-      --accent-text: #042f2e;
-      --warn: #fbbf24;
-      --warn-dim: rgba(251, 191, 36, 0.14);
-      --danger: #f87171;
-      --danger-dim: rgba(248, 113, 113, 0.14);
-      --ok: #34d399;
-      --ok-dim: rgba(52, 211, 153, 0.14);
-      --info: #60a5fa;
-      --info-dim: rgba(96, 165, 250, 0.14);
-      --radius: 12px;
-      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-      --font: "IBM Plex Sans", "Segoe UI", sans-serif;
-      --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: var(--font);
-      color: var(--text);
-      background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(45, 212, 191, 0.08), transparent 60%),
-        radial-gradient(900px 500px at 100% 0%, rgba(96, 165, 250, 0.07), transparent 55%),
-        var(--bg);
-      line-height: 1.45;
-    }
-
-    a { color: var(--accent); }
-
-    .wrap {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 28px 20px 64px;
-    }
-
-    header.hero {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    header.hero h1 {
-      margin: 0 0 6px;
-      font-size: 1.65rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-
-    header.hero p {
-      margin: 0;
-      color: var(--text-muted);
-      max-width: 46ch;
-      font-size: 0.95rem;
-    }
-
-    .pill-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--bg-elevated);
-      color: var(--text-muted);
-      font-size: 0.78rem;
-      font-family: var(--mono);
-    }
-
-    .pill .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--text-faint);
-    }
-
-    .pill.live .dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 16px;
-    }
-
-    @media (max-width: 900px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    .card {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-
-    .card-hd {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .card-hd h2 {
-      margin: 0;
-      font-size: 0.92rem;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-    }
-
-    .card-hd span {
-      color: var(--text-faint);
-      font-size: 0.78rem;
-    }
-
-    .card-bd { padding: 16px; }
-
-    label {
-      display: block;
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      font-weight: 500;
-    }
-
-    .field { margin-bottom: 14px; }
-
-    .field:last-child { margin-bottom: 0; }
-
-    input[type="text"],
-    input[type="password"],
-    textarea,
-    select {
-      width: 100%;
-      border: 1px solid var(--border);
-      background: var(--bg);
-      color: var(--text);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font: inherit;
-      font-size: 0.92rem;
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-
-    textarea {
-      min-height: 96px;
-      resize: vertical;
-      font-family: var(--mono);
-      font-size: 0.85rem;
-      line-height: 1.5;
-    }
-
-    .input-with-prefix {
-      display: flex;
-      align-items: stretch;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      overflow: hidden;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-
-    .input-with-prefix:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-dim);
-    }
-
-    .input-with-prefix .prefix {
-      display: flex;
-      align-items: center;
-      padding: 0 12px;
-      border-right: 1px solid var(--border);
-      background: var(--bg-soft);
-      color: var(--text-muted);
-      font-family: var(--mono);
-      font-size: 0.82rem;
-      font-weight: 500;
-      white-space: nowrap;
-      user-select: none;
-    }
-
-    .input-with-prefix input {
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
-      background: transparent;
-    }
-
-    .input-with-prefix input:focus {
-      border: none;
-      box-shadow: none;
-    }
-
-    .hint {
-      margin-top: 6px;
-      font-size: 0.75rem;
-      color: var(--text-faint);
-    }
-
-    .row-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    @media (max-width: 560px) {
-      .row-2 { grid-template-columns: 1fr; }
-    }
-
-    .check {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--bg-soft);
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .check input {
-      margin-top: 2px;
-      accent-color: var(--accent);
-      width: 16px;
-      height: 16px;
-    }
-
-    .check strong {
-      display: block;
-      font-size: 0.88rem;
-      font-weight: 600;
-    }
-
-    .check small {
-      display: block;
-      color: var(--text-muted);
-      font-size: 0.76rem;
-      margin-top: 2px;
-    }
-
-    details.twilio {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      overflow: hidden;
-    }
-
-    details.twilio summary {
-      cursor: pointer;
-      padding: 11px 12px;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      list-style: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    details.twilio summary::-webkit-details-marker { display: none; }
-
-    details.twilio summary::after {
-      content: "▸";
-      color: var(--text-faint);
-      transition: transform 0.15s;
-    }
-
-    details.twilio[open] summary::after { transform: rotate(90deg); }
-
-    details.twilio .inner { padding: 0 12px 12px; }
-
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .action {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: center;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--bg);
-    }
-
-    .action h3 {
-      margin: 0 0 3px;
-      font-size: 0.92rem;
-      font-weight: 600;
-    }
-
-    .action p {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: 0.76rem;
-    }
-
-    .action .meta {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      align-items: stretch;
-      min-width: 150px;
-    }
-
-    button {
-      appearance: none;
-      border: none;
-      border-radius: 8px;
-      padding: 9px 14px;
-      font: inherit;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.08s, opacity 0.15s, background 0.15s;
-      white-space: nowrap;
-    }
-
-    button:active { transform: translateY(1px); }
-    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-
-    .btn-primary {
-      background: var(--accent);
-      color: var(--accent-text);
-    }
-
-    .btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
-
-    .btn-info {
-      background: var(--info-dim);
-      color: #bfdbfe;
-      border: 1px solid rgba(96, 165, 250, 0.35);
-    }
-
-    .btn-warn {
-      background: var(--warn-dim);
-      color: #fde68a;
-      border: 1px solid rgba(251, 191, 36, 0.35);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-    }
-
-    .btn-ghost:hover:not(:disabled) {
-      color: var(--text);
-      border-color: var(--border-strong);
-    }
-
-    .provider-toggle {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 4px;
-    }
-
-    .provider-toggle label {
-      margin: 0;
-      text-align: center;
-      padding: 7px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-
-    .provider-toggle input { display: none; }
-
-    .provider-toggle label:has(input:checked) {
-      background: var(--bg-elevated);
-      color: var(--text);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
-    }
-
-    .results-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 16px;
-      margin-bottom: 10px;
-    }
-
-    .results-bar h2 {
-      margin: 0;
-      font-size: 1rem;
-    }
-
-    .stats {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .stat {
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      padding: 4px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      background: var(--bg-elevated);
-    }
-
-    .stat.ok { color: var(--ok); border-color: rgba(52, 211, 153, 0.35); background: var(--ok-dim); }
-    .stat.err { color: var(--danger); border-color: rgba(248, 113, 113, 0.35); background: var(--danger-dim); }
-    .stat.skip { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-dim); }
-
-    .banner {
-      display: none;
-      margin-bottom: 14px;
-      padding: 11px 13px;
-      border-radius: 8px;
-      font-size: 0.86rem;
-      border: 1px solid var(--border);
-    }
-
-    .banner.show { display: block; }
-    .banner.error { background: var(--danger-dim); border-color: rgba(248, 113, 113, 0.4); color: #fecaca; }
-    .banner.info { background: var(--info-dim); border-color: rgba(96, 165, 250, 0.35); color: #bfdbfe; }
-    .banner.ok { background: var(--ok-dim); border-color: rgba(52, 211, 153, 0.35); color: #a7f3d0; }
-
-    .table-wrap {
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--bg-elevated);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 760px;
-      font-size: 0.84rem;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 11px 12px;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
-    }
-
-    th {
-      color: var(--text-faint);
-      font-weight: 600;
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      background: var(--bg-soft);
-      position: sticky;
-      top: 0;
-    }
-
-    tr:last-child td { border-bottom: none; }
-
-    tr:hover td { background: rgba(255, 255, 255, 0.015); }
-
-    .mono { font-family: var(--mono); font-size: 0.8rem; }
-    .muted { color: var(--text-muted); }
-    .faint { color: var(--text-faint); }
-
-    .badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 999px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      font-family: var(--mono);
-      letter-spacing: 0.01em;
-      border: 1px solid transparent;
-    }
-
-    .badge-ok, .badge-imported, .badge-updated, .badge-already_imported, .badge-already_set {
-      background: var(--ok-dim);
-      color: var(--ok);
-      border-color: rgba(52, 211, 153, 0.3);
-    }
-
-    .badge-skipped {
-      background: var(--warn-dim);
-      color: var(--warn);
-      border-color: rgba(251, 191, 36, 0.3);
-    }
-
-    .badge-error {
-      background: var(--danger-dim);
-      color: var(--danger);
-      border-color: rgba(248, 113, 113, 0.3);
-    }
-
-    .url-cell {
-      max-width: 220px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-
-    .empty {
-      padding: 36px 20px;
-      text-align: center;
-      color: var(--text-faint);
-      font-size: 0.9rem;
-    }
-
-    .raw {
-      margin-top: 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--bg-elevated);
-      overflow: hidden;
-    }
-
-    .raw summary {
-      cursor: pointer;
-      padding: 10px 14px;
-      color: var(--text-muted);
-      font-size: 0.82rem;
-      list-style: none;
-    }
-
-    .raw summary::-webkit-details-marker { display: none; }
-
-    .raw pre {
-      margin: 0;
-      padding: 0 14px 14px;
-      overflow: auto;
-      max-height: 360px;
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: #cbd5e1;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .busy {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-    }
-
-    .busy.show { display: inline-flex; }
-
-    .spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--border-strong);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    dialog {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0;
-      background: var(--bg-elevated);
-      color: var(--text);
-      box-shadow: var(--shadow);
-      width: min(420px, calc(100vw - 32px));
-    }
-
-    dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
-
-    dialog .dlg-bd { padding: 18px; }
-    dialog h3 { margin: 0 0 8px; font-size: 1rem; }
-    dialog p { margin: 0; color: var(--text-muted); font-size: 0.88rem; }
-    dialog .dlg-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      padding: 12px 18px 18px;
-    }
-
-    .flow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 0 0 18px;
-      padding: 0;
-      list-style: none;
-    }
-
-    .flow li {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--text-muted);
-      font-size: 0.78rem;
-    }
-
-    .flow li span {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      color: var(--accent);
-    }
-
-    .flow li:not(:last-child)::after {
-      content: "→";
-      color: var(--text-faint);
-      margin-left: 2px;
-    }
-  </style>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
 </head>
 <body>
   <div class="wrap">
@@ -675,143 +22,188 @@
       </div>
     </header>
 
-    <ol class="flow">
-      <li><span>1</span> Import to ElevenLabs</li>
-      <li><span>2</span> Check status</li>
-      <li><span>3</span> Switch provider</li>
-    </ol>
-
     <div id="banner" class="banner" role="status"></div>
 
-    <div class="grid">
-      <section class="card">
-        <div class="card-hd">
-          <h2>Request</h2>
-          <span>client_ids · options</span>
-        </div>
-        <div class="card-bd">
+    <section class="card auth-bar">
+      <div class="card-bd">
+        <div class="row-2">
           <div class="field">
             <label for="baseUrl">Base URL</label>
             <input id="baseUrl" type="text" spellcheck="false" />
             <div class="hint">Includes PATH_PREFIX. Example: http://localhost:8000/vendoroo-voice-agent</div>
           </div>
-
           <div class="field">
             <label for="token">Bearer token</label>
             <div class="input-with-prefix">
               <span class="prefix">Bearer</span>
               <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="paste token only" />
             </div>
-            <div class="hint">The <code>Bearer</code> prefix is added automatically — paste the raw token only.</div>
+            <div class="hint">Paste the raw token only — the prefix is added automatically.</div>
           </div>
-
-          <div class="field">
-            <label for="clientIds">Client IDs</label>
-            <textarea id="clientIds" placeholder="101, 202, 303&#10;or one ID per line"></textarea>
-            <div class="hint">Comma or newline separated. Max 100 per request.</div>
-          </div>
-
-          <div class="field">
-            <label class="check" for="forwardVoice">
-              <input id="forwardVoice" type="checkbox" checked />
-              <div>
-                <strong>forward_voice</strong>
-                <small>Append ?forward=DefaultPhoneContact to primary and fallback voice URLs (POST only).</small>
-              </div>
-            </label>
-          </div>
-
-          <details class="twilio">
-            <summary>Optional Twilio account override</summary>
-            <div class="inner">
-              <div class="row-2" style="margin-top: 4px;">
-                <div class="field">
-                  <label for="twilioSid">twilio_account_sid</label>
-                  <input id="twilioSid" type="text" spellcheck="false" placeholder="ACxxxx…" />
-                </div>
-                <div class="field">
-                  <label for="twilioToken">twilio_auth_token</label>
-                  <input id="twilioToken" type="password" spellcheck="false" autocomplete="off" />
-                </div>
-              </div>
-              <div class="hint">Both required together, or leave both empty to use server env credentials.</div>
-            </div>
-          </details>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="card">
+    <div class="tabs" role="tablist" aria-label="Admin views">
+      <button class="tab" type="button" role="tab" id="tabProvider" aria-controls="panelProvider" aria-selected="true">Phone provider status</button>
+      <button class="tab" type="button" role="tab" id="tabBatch" aria-controls="panelBatch" aria-selected="false">Batch tools</button>
+    </div>
+
+    <div class="tab-panel" id="panelProvider" role="tabpanel" aria-labelledby="tabProvider">
+      <section class="card routing">
         <div class="card-hd">
-          <h2>Actions</h2>
-          <div class="busy" id="busy"><span class="spinner"></span><span>Working…</span></div>
-        </div>
-        <div class="card-bd">
-          <div class="actions">
-            <div class="action">
-              <div>
-                <h3>Phone number status</h3>
-                <p>GET · read-only Twilio webhooks + ElevenLabs import flags</p>
-              </div>
-              <div class="meta">
-                <button class="btn-info" id="btnStatus" type="button">Check status</button>
-              </div>
-            </div>
-
-            <div class="action">
-              <div>
-                <h3>Import ElevenLabs</h3>
-                <p>POST · import AssignedPhoneNumber; keeps Twilio on Vapi by default</p>
-              </div>
-              <div class="meta">
-                <button class="btn-primary" id="btnImport" type="button">Import</button>
-              </div>
-            </div>
-
-            <div class="action">
-              <div>
-                <h3>Switch phone provider</h3>
-                <p>POST · flip VoiceUrl + SmsUrl (+ fallbacks) live</p>
-              </div>
-              <div class="meta">
-                <div class="provider-toggle" role="radiogroup" aria-label="Target provider">
-                  <label><input type="radio" name="provider" value="elevenlabs" checked /> elevenlabs</label>
-                  <label><input type="radio" name="provider" value="vapi" /> vapi</label>
-                </div>
-                <button class="btn-warn" id="btnSwitch" type="button">Switch</button>
-              </div>
-            </div>
+          <div>
+            <h2>Phone provider status</h2>
+            <span>Primary vs fallback · ElevenLabs / Vapi · one GET per client</span>
           </div>
+          <div class="hd-actions">
+            <span class="routing-meta" id="routingMeta"></span>
+            <div class="busy" id="routingBusy"><span class="spinner"></span><span id="routingBusyLabel">Refreshing…</span></div>
+            <button class="btn-info" id="btnRefreshRouting" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="routingPanel">
+          <div class="empty" id="routingEmpty">Add client IDs to <code>js/config.js</code> (<code>CLIENT_IDS</code>), then use Refresh.</div>
+          <table id="routingTable" hidden>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Phone</th>
+                <th>Primary</th>
+                <th>Fallback</th>
+                <th>Switch</th>
+                <th>Fetched</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody id="routingBody"></tbody>
+          </table>
         </div>
       </section>
     </div>
 
-    <div class="results-bar">
-      <h2>Results</h2>
-      <div class="stats" id="stats"></div>
-    </div>
+    <div class="tab-panel" id="panelBatch" role="tabpanel" aria-labelledby="tabBatch" hidden>
+      <ol class="flow">
+        <li><span>1</span> Import to ElevenLabs</li>
+        <li><span>2</span> Check status</li>
+        <li><span>3</span> Switch provider</li>
+      </ol>
 
-    <div class="table-wrap" id="resultsPanel">
-      <div class="empty" id="emptyState">Run an action to see per-client outcomes here.</div>
-      <table id="resultsTable" hidden>
-        <thead>
-          <tr>
-            <th>Client</th>
-            <th>Phone</th>
-            <th>Status</th>
-            <th>Reason</th>
-            <th>EL imported</th>
-            <th>Voice URL</th>
-            <th>SMS URL</th>
-          </tr>
-        </thead>
-        <tbody id="resultsBody"></tbody>
-      </table>
-    </div>
+      <div class="grid">
+        <section class="card">
+          <div class="card-hd">
+            <h2>Request</h2>
+            <span>client_ids · options</span>
+          </div>
+          <div class="card-bd">
+            <div class="field">
+              <label for="clientIds">Client IDs</label>
+              <textarea id="clientIds" placeholder="101, 202, 303&#10;or one ID per line"></textarea>
+              <div class="hint">Comma or newline separated. Max 100 per request.</div>
+            </div>
 
-    <details class="raw" id="rawBlock" hidden>
-      <summary>Raw JSON response</summary>
-      <pre id="rawJson"></pre>
-    </details>
+            <div class="field">
+              <label class="check" for="forwardVoice">
+                <input id="forwardVoice" type="checkbox" checked />
+                <div>
+                  <strong>forward_voice</strong>
+                  <small>Append ?forward=DefaultPhoneContact to primary and fallback voice URLs (POST only).</small>
+                </div>
+              </label>
+            </div>
+
+            <details class="twilio">
+              <summary>Optional Twilio account override</summary>
+              <div class="inner">
+                <div class="row-2" style="margin-top: 4px;">
+                  <div class="field">
+                    <label for="twilioSid">twilio_account_sid</label>
+                    <input id="twilioSid" type="text" spellcheck="false" placeholder="ACxxxx…" />
+                  </div>
+                  <div class="field">
+                    <label for="twilioToken">twilio_auth_token</label>
+                    <input id="twilioToken" type="password" spellcheck="false" autocomplete="off" />
+                  </div>
+                </div>
+                <div class="hint">Both required together, or leave both empty to use server env credentials.</div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-hd">
+            <h2>Actions</h2>
+            <div class="busy" id="busy"><span class="spinner"></span><span>Working…</span></div>
+          </div>
+          <div class="card-bd">
+            <div class="actions">
+              <div class="action">
+                <div>
+                  <h3>Phone number status</h3>
+                  <p>GET · read-only Twilio webhooks + ElevenLabs import flags</p>
+                </div>
+                <div class="meta">
+                  <button class="btn-info" id="btnStatus" type="button">Check status</button>
+                </div>
+              </div>
+
+              <div class="action">
+                <div>
+                  <h3>Import ElevenLabs</h3>
+                  <p>POST · import AssignedPhoneNumber; keeps Twilio on Vapi by default</p>
+                </div>
+                <div class="meta">
+                  <button class="btn-primary" id="btnImport" type="button">Import</button>
+                </div>
+              </div>
+
+              <div class="action">
+                <div>
+                  <h3>Switch phone provider</h3>
+                  <p>POST · flip VoiceUrl + SmsUrl (+ fallbacks) live</p>
+                </div>
+                <div class="meta">
+                  <div class="provider-toggle" role="radiogroup" aria-label="Target provider">
+                    <label><input type="radio" name="provider" value="elevenlabs" checked /> elevenlabs</label>
+                    <label><input type="radio" name="provider" value="vapi" /> vapi</label>
+                  </div>
+                  <button class="btn-warn" id="btnSwitch" type="button">Switch</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="results-bar">
+        <h2>Results</h2>
+        <div class="stats" id="stats"></div>
+      </div>
+
+      <div class="table-wrap" id="resultsPanel">
+        <div class="empty" id="emptyState">Run an action to see per-client outcomes here.</div>
+        <table id="resultsTable" hidden>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Phone</th>
+              <th>Status</th>
+              <th>Reason</th>
+              <th>EL imported</th>
+              <th>Voice URL</th>
+              <th>SMS URL</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+
+      <details class="raw" id="rawBlock" hidden>
+        <summary>Raw JSON response</summary>
+        <pre id="rawJson"></pre>
+      </details>
+    </div>
   </div>
 
   <dialog id="confirmDialog">
@@ -825,321 +217,6 @@
     </div>
   </dialog>
 
-  <script>
-    const CONFIG = {
-      baseUrl: "https://api-marketplace.vendoroo.ai/vendoroo-voice-agent",
-      token: "",
-    };
-
-    const els = {
-      baseUrl: document.getElementById("baseUrl"),
-      token: document.getElementById("token"),
-      clientIds: document.getElementById("clientIds"),
-      forwardVoice: document.getElementById("forwardVoice"),
-      twilioSid: document.getElementById("twilioSid"),
-      twilioToken: document.getElementById("twilioToken"),
-      banner: document.getElementById("banner"),
-      busy: document.getElementById("busy"),
-      stats: document.getElementById("stats"),
-      emptyState: document.getElementById("emptyState"),
-      resultsTable: document.getElementById("resultsTable"),
-      resultsBody: document.getElementById("resultsBody"),
-      rawBlock: document.getElementById("rawBlock"),
-      rawJson: document.getElementById("rawJson"),
-      connLabel: document.getElementById("connLabel"),
-      connPill: document.getElementById("connPill"),
-      authPill: document.getElementById("authPill"),
-      confirmDialog: document.getElementById("confirmDialog"),
-      confirmText: document.getElementById("confirmText"),
-      confirmOk: document.getElementById("confirmOk"),
-      confirmCancel: document.getElementById("confirmCancel"),
-      btnStatus: document.getElementById("btnStatus"),
-      btnImport: document.getElementById("btnImport"),
-      btnSwitch: document.getElementById("btnSwitch"),
-    };
-
-    els.baseUrl.value = CONFIG.baseUrl;
-    els.token.value = CONFIG.token;
-    updateHeaderPills();
-    els.baseUrl.addEventListener("input", updateHeaderPills);
-    els.token.addEventListener("input", updateHeaderPills);
-
-    function updateHeaderPills() {
-      const base = els.baseUrl.value.trim();
-      if (!base) {
-        els.connLabel.textContent = "no base URL";
-        els.connPill.classList.remove("live");
-      } else {
-        try {
-          const u = new URL(base);
-          els.connLabel.textContent = u.host + u.pathname.replace(/\/$/, "");
-          els.connPill.classList.add("live");
-        } catch {
-          els.connLabel.textContent = "invalid base URL";
-          els.connPill.classList.remove("live");
-        }
-      }
-
-      if (els.token.value.trim()) {
-        els.authPill.textContent = "Bearer · configured";
-        els.authPill.classList.add("live");
-      } else {
-        els.authPill.textContent = "Bearer · missing";
-        els.authPill.classList.remove("live");
-      }
-    }
-
-    function parseClientIds() {
-      const raw = els.clientIds.value.trim();
-      if (!raw) return [];
-      const parts = raw.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean);
-      const ids = [];
-      for (const part of parts) {
-        if (!/^\d+$/.test(part)) {
-          throw new Error(`Invalid client ID: "${part}" (digits only)`);
-        }
-        ids.push(Number(part));
-      }
-      const unique = [...new Set(ids)];
-      if (unique.length > 100) {
-        throw new Error("Maximum 100 client IDs per request");
-      }
-      return unique;
-    }
-
-    function twilioOverride() {
-      const sid = els.twilioSid.value.trim();
-      const token = els.twilioToken.value.trim();
-      if (Boolean(sid) !== Boolean(token)) {
-        throw new Error("twilio_account_sid and twilio_auth_token must both be provided or both omitted");
-      }
-      if (!sid) return null;
-      return { twilio_account_sid: sid, twilio_auth_token: token };
-    }
-
-    function selectedProvider() {
-      const checked = document.querySelector('input[name="provider"]:checked');
-      return checked ? checked.value : "elevenlabs";
-    }
-
-    function setBusy(on) {
-      els.busy.classList.toggle("show", on);
-      els.btnStatus.disabled = on;
-      els.btnImport.disabled = on;
-      els.btnSwitch.disabled = on;
-    }
-
-    function showBanner(type, message) {
-      els.banner.className = `banner show ${type}`;
-      els.banner.textContent = message;
-    }
-
-    function clearBanner() {
-      els.banner.className = "banner";
-      els.banner.textContent = "";
-    }
-
-    function escapeHtml(value) {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
-    }
-
-    function badgeClass(status) {
-      const key = String(status || "").toLowerCase().replaceAll("-", "_");
-      return `badge badge-${key}`;
-    }
-
-    function classifyStatus(status) {
-      const s = String(status || "").toLowerCase();
-      if (s === "error") return "err";
-      if (s === "skipped") return "skip";
-      return "ok";
-    }
-
-    function renderResults(payload) {
-      const results = Array.isArray(payload?.results) ? payload.results : [];
-      els.rawJson.textContent = JSON.stringify(payload, null, 2);
-      els.rawBlock.hidden = false;
-
-      if (!results.length) {
-        els.emptyState.hidden = false;
-        els.emptyState.textContent = "Request succeeded but returned no results.";
-        els.resultsTable.hidden = true;
-        els.stats.innerHTML = "";
-        return;
-      }
-
-      els.emptyState.hidden = true;
-      els.resultsTable.hidden = false;
-
-      let ok = 0;
-      let err = 0;
-      let skip = 0;
-      for (const row of results) {
-        const bucket = classifyStatus(row.status);
-        if (bucket === "err") err += 1;
-        else if (bucket === "skip") skip += 1;
-        else ok += 1;
-      }
-
-      const action = payload.action ? escapeHtml(payload.action) : "batch";
-      const provider = payload.provider ? ` · ${escapeHtml(payload.provider)}` : "";
-      els.stats.innerHTML = `
-        <span class="stat">${action}${provider}</span>
-        <span class="stat ok">${ok} ok</span>
-        <span class="stat skip">${skip} skipped</span>
-        <span class="stat err">${err} error</span>
-      `;
-
-      els.resultsBody.innerHTML = results.map((row) => {
-        const elImported = row.elevenlabs_imported === true
-          ? "yes"
-          : row.elevenlabs_imported === false
-            ? "no"
-            : "—";
-        return `
-          <tr>
-            <td class="mono">${escapeHtml(row.client_id ?? "—")}</td>
-            <td class="mono">${escapeHtml(row.phone_number ?? "—")}</td>
-            <td><span class="${badgeClass(row.status)}">${escapeHtml(row.status ?? "—")}</span></td>
-            <td class="muted">${escapeHtml(row.reason ?? "—")}</td>
-            <td class="mono">${escapeHtml(elImported)}</td>
-            <td class="url-cell" title="${escapeHtml(row.voice_url ?? "")}">${escapeHtml(row.voice_url ?? "—")}</td>
-            <td class="url-cell" title="${escapeHtml(row.sms_url ?? "")}">${escapeHtml(row.sms_url ?? "—")}</td>
-          </tr>
-        `;
-      }).join("");
-    }
-
-    async function apiRequest(method, path, body) {
-      const base = els.baseUrl.value.trim().replace(/\/$/, "");
-      let token = els.token.value.trim();
-      if (!base) throw new Error("Base URL is required");
-      if (!token) throw new Error("Bearer token is required");
-      if (/^bearer\s+/i.test(token)) {
-        token = token.replace(/^bearer\s+/i, "").trim();
-      }
-      if (!token) throw new Error("Bearer token is required");
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      };
-      const init = { method, headers };
-      if (body !== undefined) {
-        headers["Content-Type"] = "application/json";
-        init.body = JSON.stringify(body);
-      }
-
-      const response = await fetch(`${base}${path}`, init);
-      const text = await response.text();
-      let data = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = { raw: text };
-      }
-
-      if (!response.ok) {
-        const detail = data?.detail ?? data?.message ?? text ?? response.statusText;
-        const detailText = typeof detail === "string" ? detail : JSON.stringify(detail);
-        throw new Error(`HTTP ${response.status}: ${detailText}`);
-      }
-      return data;
-    }
-
-    async function runStatus() {
-      clearBanner();
-      const ids = parseClientIds();
-      if (!ids.length) throw new Error("Enter at least one client ID");
-      const twilio = twilioOverride();
-      const params = new URLSearchParams({ client_ids: ids.join(",") });
-      if (twilio) {
-        params.set("twilio_account_sid", twilio.twilio_account_sid);
-        params.set("twilio_auth_token", twilio.twilio_auth_token);
-      }
-      return apiRequest("GET", `/api/admin/phone-numbers/phone-number-status?${params}`);
-    }
-
-    async function runImport() {
-      clearBanner();
-      const ids = parseClientIds();
-      if (!ids.length) throw new Error("Enter at least one client ID");
-      const body = {
-        client_ids: ids,
-        forward_voice: els.forwardVoice.checked,
-      };
-      const twilio = twilioOverride();
-      if (twilio) Object.assign(body, twilio);
-      return apiRequest("POST", "/api/admin/phone-numbers/import-elevenlabs", body);
-    }
-
-    async function runSwitch() {
-      clearBanner();
-      const ids = parseClientIds();
-      if (!ids.length) throw new Error("Enter at least one client ID");
-      const body = {
-        client_ids: ids,
-        provider: selectedProvider(),
-        forward_voice: els.forwardVoice.checked,
-      };
-      const twilio = twilioOverride();
-      if (twilio) Object.assign(body, twilio);
-      return apiRequest("POST", "/api/admin/phone-numbers/switch-phone-provider", body);
-    }
-
-    async function withUi(fn) {
-      setBusy(true);
-      try {
-        const data = await fn();
-        renderResults(data);
-        const n = Array.isArray(data?.results) ? data.results.length : 0;
-        const errors = (data?.results || []).filter((r) => String(r.status).toLowerCase() === "error").length;
-        if (errors) {
-          showBanner("error", `Completed with ${errors} error(s) out of ${n} result(s).`);
-        } else {
-          showBanner("ok", `Done — ${n} result(s).`);
-        }
-      } catch (err) {
-        showBanner("error", err.message || String(err));
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    els.btnStatus.addEventListener("click", () => withUi(runStatus));
-    els.btnImport.addEventListener("click", () => withUi(runImport));
-
-    let pendingSwitch = null;
-    els.btnSwitch.addEventListener("click", () => {
-      try {
-        const ids = parseClientIds();
-        if (!ids.length) throw new Error("Enter at least one client ID");
-        twilioOverride();
-        const provider = selectedProvider();
-        els.confirmText.textContent =
-          `Switch ${ids.length} client(s) to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`;
-        pendingSwitch = true;
-        els.confirmDialog.showModal();
-      } catch (err) {
-        showBanner("error", err.message || String(err));
-      }
-    });
-
-    els.confirmCancel.addEventListener("click", () => {
-      pendingSwitch = null;
-      els.confirmDialog.close();
-    });
-
-    els.confirmOk.addEventListener("click", () => {
-      els.confirmDialog.close();
-      if (!pendingSwitch) return;
-      pendingSwitch = null;
-      withUi(runSwitch);
-    });
-  </script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
