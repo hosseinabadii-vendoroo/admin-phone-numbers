@@ -143,13 +143,34 @@ export function routingEntryFor(clientId, cache) {
 
 function updateRoutingMeta(els, cache, extra = "") {
   const ids = uniqueClientIds();
-  const fetched = ids.filter((id) => cache[String(id)]?.fetched_at).length;
-  const limited = ids.filter((id) => cache[String(id)]?.rate_limited).length;
-  const parts = [`${ids.length} clients`, `${fetched} cached`];
+  let eleven = 0;
+  let vapi = 0;
+  let unknown = 0;
+  let fetched = 0;
+  let limited = 0;
 
-  if (limited) parts.push(`${limited} rate-limited`);
-  if (extra) parts.push(extra);
-  els.routingMeta.textContent = parts.join(" · ");
+  for (const id of ids) {
+    const row = routingEntryFor(id, cache);
+
+    if (row.fetched_at) fetched += 1;
+    if (row.rate_limited) limited += 1;
+
+    if (row.primary === "elevenlabs") eleven += 1;
+    else if (row.primary === "vapi") vapi += 1;
+    else unknown += 1;
+  }
+
+  const chips = [
+    `<span class="stat">${ids.length} clients</span>`,
+    `<span class="stat ok">${eleven} elevenlabs</span>`,
+    `<span class="stat info">${vapi} vapi</span>`,
+    `<span class="stat skip">${unknown} unknown</span>`,
+    `<span class="stat">${fetched} cached</span>`,
+  ];
+
+  if (limited) chips.push(`<span class="stat err">${limited} rate-limited</span>`);
+  if (extra) chips.push(`<span class="stat">${escapeHtml(extra)}</span>`);
+  els.routingMeta.innerHTML = chips.join("");
 }
 
 export function setRoutingControlsDisabled(els, on) {
@@ -167,7 +188,7 @@ export function renderRoutingTable(els) {
 
   if (!ids.length) {
     els.routingEmpty.hidden = false;
-    els.routingEmpty.innerHTML = "Add client IDs to <code>js/config.js</code> (<code>CLIENT_IDS</code>), then use Refresh.";
+    els.routingEmpty.innerHTML = "Add client IDs to <code>js/config.js</code> (<code>CLIENT_IDS</code>), then use Refresh all.";
     els.routingTable.hidden = true;
     els.routingBody.innerHTML = "";
 
@@ -182,7 +203,7 @@ export function renderRoutingTable(els) {
     const fallback = row.fallback || "unknown";
     const reason = typeof row.reason === "string" ? row.reason.trim() : "";
     const note = row.rate_limited
-      ? "Rate limited — skipped until next Refresh"
+      ? "Rate limited — skipped until the next refresh"
       : (row.error || reason || "—");
     const elCurrent = primary === "elevenlabs" ? " is-current" : "";
     const vapiCurrent = primary === "vapi" ? " is-current" : "";
@@ -201,7 +222,12 @@ export function renderRoutingTable(els) {
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="vapi" class="${vapiCurrent.trim()}">Vapi</button>
               </div>
             </td>
-            <td class="mono faint">${escapeHtml(fetched)}</td>
+            <td>
+              <div class="row-fetched">
+                <span class="mono faint">${escapeHtml(fetched)}</span>
+                <button type="button" class="btn-ghost btn-row-refresh" data-refresh-client="${escapeHtml(clientId)}">Refresh</button>
+              </div>
+            </td>
             <td class="note-cell">${escapeHtml(note)}</td>
           </tr>
         `;
@@ -243,6 +269,72 @@ export function applyResultsToRoutingCache(els, payload) {
   if (uniqueClientIds().length) renderRoutingTable(els);
 }
 
+function applyStatusFetchResult(clientId, result) {
+  if (result.status === 429) {
+    upsertRoutingCache(clientId, {
+      rate_limited: true,
+      error: "HTTP 429 rate limited",
+    });
+
+    return "limited";
+  }
+
+  if (!result.ok) {
+    upsertRoutingCache(clientId, {
+      rate_limited: false,
+      error: httpErrorMessage(result.status, result.data, result.text, ""),
+    });
+
+    return "error";
+  }
+
+  const row = firstResult(result.data);
+  if (!row) {
+    upsertRoutingCache(clientId, {
+      rate_limited: false,
+      error: "Status response had no result row",
+    });
+
+    return "error";
+  }
+
+  const summary = summarizeStatusRow(row);
+  upsertRoutingCache(clientId, {
+    ...summary,
+    fetched_at: new Date().toISOString(),
+    rate_limited: false,
+    error: null,
+  });
+
+  return "ok";
+}
+
+export async function refreshOneClient(els, auth, twilio, clientId, { clearBanner, showBanner }) {
+  if (routingRefreshActive) return;
+
+  clearBanner();
+  els.routingBusy.classList.add("show");
+  els.routingBusyLabel.textContent = `Refreshing ${clientId}…`;
+
+  try {
+    const result = await fetchPhoneNumberStatus(auth, [clientId], twilio);
+    const outcome = applyStatusFetchResult(clientId, result);
+
+    if (outcome === "limited") {
+      showBanner("info", `Client ${clientId} hit the rate limit. Cache was not updated.`);
+    } else if (outcome === "error") {
+      const cached = routingEntryFor(clientId, loadRoutingCache());
+      showBanner("error", cached.error || `Failed to refresh client ${clientId}`);
+    } else {
+      showBanner("ok", `Updated client ${clientId} in the browser cache.`);
+    }
+  } finally {
+    els.routingBusy.classList.remove("show");
+    els.routingBusyLabel.textContent = "Refreshing…";
+    renderRoutingTable(els);
+  }
+}
+
 export async function refreshRouting(els, auth, twilio, { clearBanner, showBanner }) {
   const ids = uniqueClientIds();
   if (!ids.length) throw new Error("CLIENT_IDS is empty — paste client IDs in js/config.js");
@@ -267,47 +359,17 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
       if (skippedThisPass.has(String(clientId))) continue;
 
       const result = await fetchPhoneNumberStatus(auth, [clientId], twilio);
+      const outcome = applyStatusFetchResult(clientId, result);
 
-      if (result.status === 429) {
+      if (outcome === "limited") {
         limited += 1;
         skippedThisPass.add(String(clientId));
-        upsertRoutingCache(clientId, {
-          rate_limited: true,
-          error: "HTTP 429 rate limited",
-        });
-        renderRoutingTable(els);
-        continue;
-      }
-
-      if (!result.ok) {
+      } else if (outcome === "error") {
         errors += 1;
-        upsertRoutingCache(clientId, {
-          rate_limited: false,
-          error: httpErrorMessage(result.status, result.data, result.text, ""),
-        });
-        renderRoutingTable(els);
-        continue;
+      } else {
+        ok += 1;
       }
 
-      const row = firstResult(result.data);
-      if (!row) {
-        errors += 1;
-        upsertRoutingCache(clientId, {
-          rate_limited: false,
-          error: "Status response had no result row",
-        });
-        renderRoutingTable(els);
-        continue;
-      }
-
-      const summary = summarizeStatusRow(row);
-      ok += 1;
-      upsertRoutingCache(clientId, {
-        ...summary,
-        fetched_at: new Date().toISOString(),
-        rate_limited: false,
-        error: null,
-      });
       renderRoutingTable(els);
 
       if (index < ids.length - 1) {

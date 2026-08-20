@@ -5,6 +5,7 @@ import {
   applyResultsToRoutingCache,
   loadRoutingCache,
   providerLabel,
+  refreshOneClient,
   refreshRouting,
   renderRoutingTable,
   routingEntryFor,
@@ -241,6 +242,29 @@ els.btnSwitch.addEventListener("click", () => {
 });
 
 els.routingBody.addEventListener("click", (event) => {
+  const refreshBtn = event.target.closest("[data-refresh-client]");
+  if (refreshBtn) {
+    if (refreshBtn.disabled) return;
+
+    const clientId = Number(refreshBtn.getAttribute("data-refresh-client"));
+
+    (async () => {
+      setBusy(true);
+      try {
+        await refreshOneClient(els, readAuth(), twilioOverride(), clientId, {
+          clearBanner,
+          showBanner,
+        });
+      } catch (err) {
+        showBanner("error", err.message || String(err));
+      } finally {
+        setBusy(false);
+      }
+    })();
+
+    return;
+  }
+
   const button = event.target.closest("[data-switch-client]");
   if (!button || button.disabled) return;
   if (button.classList.contains("is-current")) return;

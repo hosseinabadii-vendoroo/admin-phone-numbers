@@ -439,6 +439,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .stat.ok { color: var(--ok); border-color: rgba(52, 211, 153, 0.35); background: var(--ok-dim); }
 .stat.err { color: var(--danger); border-color: rgba(248, 113, 113, 0.35); background: var(--danger-dim); }
 .stat.skip { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-dim); }
+.stat.info { color: var(--info); border-color: rgba(96, 165, 250, 0.35); background: var(--info-dim); }
 
 .banner {
   display: none;
@@ -700,9 +701,11 @@ dialog .dlg-actions {
 }
 
 .routing-meta {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--text-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .routing table { min-width: 920px; }
@@ -758,6 +761,18 @@ dialog .dlg-actions {
 
 .row-switch button.is-current:hover:not(:disabled) {
   background: var(--bg-elevated);
+}
+
+.row-fetched {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.btn-row-refresh {
+  padding: 4px 8px;
+  font-size: 0.72rem;
 }
 
 td.note-cell {
