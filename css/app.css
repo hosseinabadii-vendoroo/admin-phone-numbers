@@ -801,3 +801,7 @@ td.note-cell {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+.note-alert {
+  color: var(--danger);
+}

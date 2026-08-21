@@ -211,12 +211,14 @@ export function renderRoutingTable(els) {
     const phone = row.phone_number || "—";
     const fetched = formatFetched(row.fetched_at);
     const noteEmpty = !row.rate_limited && !row.error && !reason;
-    let noteMarkup = escapeHtml(note);
+    let noteMarkup = `<span class="note-alert">${escapeHtml(note)}</span>`;
 
     if (noteEmpty && row.elevenlabs_imported === true) {
       noteMarkup = escapeHtml("Imported to elevenlabs");
     } else if (noteEmpty && row.elevenlabs_imported === false) {
-      noteMarkup = `<button type="button" class="btn-ghost btn-row-refresh btn-import-el" data-import-client="${escapeHtml(clientId)}">Import to EL</button>`;
+      noteMarkup = `<button type="button" class="btn-ghost btn-row-refresh btn-import-el" data-import-client="${escapeHtml(clientId)}">Import to elevenlabs</button>`;
+    } else if (noteEmpty) {
+      noteMarkup = escapeHtml("—");
     }
 
     return `
