@@ -131,6 +131,7 @@ function emptyRoutingEntry(clientId) {
     rate_limited: false,
     error: null,
     reason: null,
+    elevenlabs_imported: null,
   };
 }
 
@@ -209,11 +210,23 @@ export function renderRoutingTable(els) {
     const vapiCurrent = primary === "vapi" ? " is-current" : "";
     const phone = row.phone_number || "—";
     const fetched = formatFetched(row.fetched_at);
+    let importedMarkup = "";
+
+    if (row.elevenlabs_imported === true) {
+      importedMarkup = `<span class="badge badge-imported">Imported to EL</span>`;
+    } else if (row.elevenlabs_imported === false) {
+      importedMarkup = `<button type="button" class="btn-ghost btn-row-refresh" data-import-client="${escapeHtml(clientId)}">Import to EL</button>`;
+    }
 
     return `
           <tr data-client-id="${escapeHtml(clientId)}">
             <td class="mono">${escapeHtml(clientId)}</td>
-            <td class="mono">${escapeHtml(phone)}</td>
+            <td>
+              <div class="phone-cell">
+                <span class="mono">${escapeHtml(phone)}</span>
+                ${importedMarkup}
+              </div>
+            </td>
             <td>${providerBadge(primary, row.primary_url)}</td>
             <td>${providerBadge(fallback, row.fallback_url)}</td>
             <td>

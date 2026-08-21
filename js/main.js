@@ -242,6 +242,44 @@ els.btnSwitch.addEventListener("click", () => {
 });
 
 els.routingBody.addEventListener("click", (event) => {
+  const importBtn = event.target.closest("[data-import-client]");
+  if (importBtn) {
+    if (importBtn.disabled) return;
+
+    const clientId = Number(importBtn.getAttribute("data-import-client"));
+
+    (async () => {
+      setBusy(true);
+      try {
+        twilioOverride();
+        const data = await importElevenlabs(
+          readAuth(),
+          [clientId],
+          els.forwardVoice.checked,
+          twilioOverride(),
+        );
+        applyResultsToRoutingCache(els, data);
+        const row = (data?.results || []).find((item) => Number(item.client_id) === clientId);
+        const failed = row && String(row.status).toLowerCase() === "error";
+
+        if (failed) {
+          showBanner("error", row.reason || `Import failed for client ${clientId}`);
+        } else {
+          await refreshOneClient(els, readAuth(), twilioOverride(), clientId, {
+            clearBanner,
+            showBanner,
+          });
+        }
+      } catch (err) {
+        showBanner("error", err.message || String(err));
+      } finally {
+        setBusy(false);
+      }
+    })();
+
+    return;
+  }
+
   const refreshBtn = event.target.closest("[data-refresh-client]");
   if (refreshBtn) {
     if (refreshBtn.disabled) return;

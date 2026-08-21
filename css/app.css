@@ -770,6 +770,13 @@ dialog .dlg-actions {
   gap: 6px;
 }
 
+.phone-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .btn-row-refresh {
   padding: 4px 8px;
   font-size: 0.72rem;
