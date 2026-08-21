@@ -710,6 +710,15 @@ dialog .dlg-actions {
 
 .routing table { min-width: 920px; }
 
+.routing table td {
+  vertical-align: middle;
+}
+
+.cell-middle,
+.switch-cell {
+  vertical-align: middle;
+}
+
 .badge-elevenlabs {
   background: var(--ok-dim);
   color: var(--ok);
@@ -737,6 +746,10 @@ dialog .dlg-actions {
   border-radius: 8px;
   padding: 3px;
   min-width: 196px;
+}
+
+.switch-cell {
+  vertical-align: middle;
 }
 
 .row-switch button {
@@ -770,16 +783,17 @@ dialog .dlg-actions {
   gap: 6px;
 }
 
-.phone-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
 .btn-row-refresh {
   padding: 4px 8px;
   font-size: 0.72rem;
+}
+
+.btn-import-el {
+  color: var(--ok);
+}
+
+.btn-import-el:hover:not(:disabled) {
+  color: var(--ok);
 }
 
 td.note-cell {

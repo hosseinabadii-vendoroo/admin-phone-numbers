@@ -210,26 +210,22 @@ export function renderRoutingTable(els) {
     const vapiCurrent = primary === "vapi" ? " is-current" : "";
     const phone = row.phone_number || "—";
     const fetched = formatFetched(row.fetched_at);
-    let importedMarkup = "";
+    const noteEmpty = !row.rate_limited && !row.error && !reason;
+    let noteMarkup = escapeHtml(note);
 
-    if (row.elevenlabs_imported === true) {
-      importedMarkup = `<span class="badge badge-imported">Imported to EL</span>`;
-    } else if (row.elevenlabs_imported === false) {
-      importedMarkup = `<button type="button" class="btn-ghost btn-row-refresh" data-import-client="${escapeHtml(clientId)}">Import to EL</button>`;
+    if (noteEmpty && row.elevenlabs_imported === true) {
+      noteMarkup = escapeHtml("Imported to elevenlabs");
+    } else if (noteEmpty && row.elevenlabs_imported === false) {
+      noteMarkup = `<button type="button" class="btn-ghost btn-row-refresh btn-import-el" data-import-client="${escapeHtml(clientId)}">Import to EL</button>`;
     }
 
     return `
           <tr data-client-id="${escapeHtml(clientId)}">
             <td class="mono">${escapeHtml(clientId)}</td>
-            <td>
-              <div class="phone-cell">
-                <span class="mono">${escapeHtml(phone)}</span>
-                ${importedMarkup}
-              </div>
-            </td>
-            <td>${providerBadge(primary, row.primary_url)}</td>
-            <td>${providerBadge(fallback, row.fallback_url)}</td>
-            <td>
+            <td class="mono">${escapeHtml(phone)}</td>
+            <td class="cell-middle">${providerBadge(primary, row.primary_url)}</td>
+            <td class="cell-middle">${providerBadge(fallback, row.fallback_url)}</td>
+            <td class="switch-cell">
               <div class="row-switch" role="group" aria-label="Switch provider for ${escapeHtml(clientId)}">
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="elevenlabs" class="${elCurrent.trim()}">ElevenLabs</button>
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="vapi" class="${vapiCurrent.trim()}">Vapi</button>
@@ -241,7 +237,7 @@ export function renderRoutingTable(els) {
                 <button type="button" class="btn-ghost btn-row-refresh" data-refresh-client="${escapeHtml(clientId)}">Refresh</button>
               </div>
             </td>
-            <td class="note-cell">${escapeHtml(note)}</td>
+            <td class="note-cell">${noteMarkup}</td>
           </tr>
         `;
   }).join("");
