@@ -10,6 +10,7 @@ import {
   renderRoutingTable,
   routingEntryFor,
   setRoutingControlsDisabled,
+  setRoutingSort,
   stopRoutingRefresh,
 } from "./routing.js";
 
@@ -362,5 +363,13 @@ function activateTab(tabId) {
 
 document.getElementById("tabProvider").addEventListener("click", () => activateTab("tabProvider"));
 document.getElementById("tabBatch").addEventListener("click", () => activateTab("tabBatch"));
+
+els.routingTable.querySelector("thead").addEventListener("click", (event) => {
+  const th = event.target.closest("th[data-sort]");
+  if (!th) return;
+
+  setRoutingSort(th.getAttribute("data-sort"));
+  renderRoutingTable(els);
+});
 
 renderRoutingTable(els);

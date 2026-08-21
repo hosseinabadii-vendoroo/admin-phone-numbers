@@ -3,11 +3,75 @@ import { fetchPhoneNumberStatus, httpErrorMessage } from "./api.js";
 import { escapeHtml } from "./results.js";
 
 let routingRefreshActive = false;
+let sortKey = "client";
+let sortDir = "asc";
 
 export function uniqueClientIds() {
   const ids = CLIENT_IDS.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
 
   return [...new Set(ids)];
+}
+
+export function setRoutingSort(key) {
+  if (sortKey === key) {
+    sortDir = sortDir === "asc" ? "desc" : "asc";
+  } else {
+    sortKey = key;
+    sortDir = "asc";
+  }
+}
+
+function providerSortValue(value) {
+  if (value === "elevenlabs") return 0;
+  if (value === "vapi") return 1;
+
+  return null;
+}
+
+function compareProviders(leftValue, rightValue, leftId, rightId) {
+  const leftRank = providerSortValue(leftValue);
+  const rightRank = providerSortValue(rightValue);
+
+  if (leftRank == null && rightRank == null) return leftId - rightId;
+  if (leftRank == null) return 1;
+  if (rightRank == null) return -1;
+
+  let cmp = leftRank - rightRank;
+  if (cmp === 0) cmp = leftId - rightId;
+
+  return sortDir === "asc" ? cmp : -cmp;
+}
+
+function sortedClientIds(ids, cache) {
+  const copy = [...ids];
+
+  copy.sort((leftId, rightId) => {
+    const left = routingEntryFor(leftId, cache);
+    const right = routingEntryFor(rightId, cache);
+
+    if (sortKey === "primary") {
+      return compareProviders(left.primary, right.primary, leftId, rightId);
+    }
+
+    if (sortKey === "fallback") {
+      return compareProviders(left.fallback, right.fallback, leftId, rightId);
+    }
+
+    return sortDir === "asc" ? leftId - rightId : rightId - leftId;
+  });
+
+  return copy;
+}
+
+function updateSortHeaders(els) {
+  for (const th of els.routingTable.querySelectorAll("th[data-sort]")) {
+    const key = th.getAttribute("data-sort");
+    if (key === sortKey) {
+      th.setAttribute("aria-sort", sortDir === "asc" ? "ascending" : "descending");
+    } else {
+      th.setAttribute("aria-sort", "none");
+    }
+  }
 }
 
 export function loadRoutingCache() {
@@ -198,7 +262,8 @@ export function renderRoutingTable(els) {
 
   els.routingEmpty.hidden = true;
   els.routingTable.hidden = false;
-  els.routingBody.innerHTML = ids.map((clientId) => {
+  updateSortHeaders(els);
+  els.routingBody.innerHTML = sortedClientIds(ids, cache).map((clientId) => {
     const row = routingEntryFor(clientId, cache);
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";

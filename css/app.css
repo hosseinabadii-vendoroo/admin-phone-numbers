@@ -487,6 +487,39 @@ th {
   top: 0;
 }
 
+.th-sort {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.th-sort:hover {
+  color: var(--text);
+}
+
+.th-sort::after {
+  content: "⇅";
+  margin-left: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.th-sort:hover::after {
+  color: var(--text);
+}
+
+.th-sort[aria-sort="ascending"]::after {
+  content: "▲";
+  color: var(--accent);
+}
+
+.th-sort[aria-sort="descending"]::after {
+  content: "▼";
+  color: var(--accent);
+}
+
 tr:last-child td { border-bottom: none; }
 
 tr:hover td { background: rgba(255, 255, 255, 0.015); }
