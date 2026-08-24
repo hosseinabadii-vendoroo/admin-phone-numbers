@@ -21,7 +21,7 @@ const els = {
   forwardVoice: document.getElementById("forwardVoice"),
   twilioSid: document.getElementById("twilioSid"),
   twilioToken: document.getElementById("twilioToken"),
-  banner: document.getElementById("banner"),
+  toasts: document.getElementById("toasts"),
   busy: document.getElementById("busy"),
   stats: document.getElementById("stats"),
   emptyState: document.getElementById("emptyState"),
@@ -137,14 +137,57 @@ function setBusy(on) {
   setRoutingControlsDisabled(els, on);
 }
 
+const TOAST_MS = { error: 6000, info: 4500, ok: 4000 };
+const TOAST_TITLE = { error: "Error", info: "Notice", ok: "Success" };
+const TOAST_MARK = { error: "!", info: "i", ok: "✓" };
+
+function dismissToast(toast) {
+  if (!toast || toast.classList.contains("out")) return;
+
+  window.clearTimeout(Number(toast.dataset.timerId || 0));
+  toast.classList.add("out");
+  window.setTimeout(() => toast.remove(), 280);
+}
+
 function showBanner(type, message) {
-  els.banner.className = `banner show ${type}`;
-  els.banner.textContent = message;
+  const kind = TOAST_TITLE[type] ? type : "info";
+  const toast = document.createElement("div");
+  toast.className = `toast ${kind}`;
+  toast.setAttribute("role", kind === "error" ? "alert" : "status");
+
+  const icon = document.createElement("div");
+  icon.className = "toast-icon";
+  icon.textContent = TOAST_MARK[kind];
+
+  const body = document.createElement("div");
+  body.className = "toast-body";
+  const title = document.createElement("strong");
+  title.textContent = TOAST_TITLE[kind];
+  const text = document.createElement("p");
+  text.textContent = message;
+  body.append(title, text);
+
+  const close = document.createElement("button");
+  close.className = "toast-close";
+  close.type = "button";
+  close.setAttribute("aria-label", "Dismiss");
+  close.textContent = "×";
+  close.addEventListener("click", () => dismissToast(toast));
+
+  const progress = document.createElement("div");
+  progress.className = "toast-progress";
+
+  toast.append(icon, body, close, progress);
+  els.toasts.append(toast);
+
+  const timerId = window.setTimeout(() => dismissToast(toast), TOAST_MS[kind]);
+  toast.dataset.timerId = String(timerId);
 }
 
 function clearBanner() {
-  els.banner.className = "banner";
-  els.banner.textContent = "";
+  for (const toast of [...els.toasts.children]) {
+    dismissToast(toast);
+  }
 }
 
 async function runStatus() {
