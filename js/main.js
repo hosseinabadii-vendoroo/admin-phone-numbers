@@ -13,6 +13,7 @@ import {
   setRoutingSort,
   stopRoutingRefresh,
 } from "./routing.js";
+import { initElevenlabs } from "./elevenlabs.js";
 
 const els = {
   baseUrl: document.getElementById("baseUrl"),
@@ -46,6 +47,8 @@ const els = {
   routingEmpty: document.getElementById("routingEmpty"),
   routingTable: document.getElementById("routingTable"),
   routingBody: document.getElementById("routingBody"),
+  elApiKey: document.getElementById("elApiKey"),
+  elPill: document.getElementById("elPill"),
 };
 
 els.baseUrl.value = CONFIG.baseUrl;
@@ -53,6 +56,7 @@ els.token.value = CONFIG.token;
 updateHeaderPills();
 els.baseUrl.addEventListener("input", updateHeaderPills);
 els.token.addEventListener("input", updateHeaderPills);
+els.elApiKey.addEventListener("input", updateHeaderPills);
 
 function readAuth() {
   return {
@@ -84,6 +88,14 @@ function updateHeaderPills() {
   } else {
     els.authPill.textContent = "Bearer · missing";
     els.authPill.classList.remove("live");
+  }
+
+  if (els.elApiKey.value.trim()) {
+    els.elPill.textContent = "ElevenLabs · configured";
+    els.elPill.classList.add("live");
+  } else {
+    els.elPill.textContent = "ElevenLabs · missing";
+    els.elPill.classList.remove("live");
   }
 }
 
@@ -395,6 +407,7 @@ function activateTab(tabId) {
   const tabs = [
     { tab: document.getElementById("tabProvider"), panel: document.getElementById("panelProvider") },
     { tab: document.getElementById("tabBatch"), panel: document.getElementById("panelBatch") },
+    { tab: document.getElementById("tabElevenlabs"), panel: document.getElementById("panelElevenlabs") },
   ];
 
   for (const item of tabs) {
@@ -406,6 +419,7 @@ function activateTab(tabId) {
 
 document.getElementById("tabProvider").addEventListener("click", () => activateTab("tabProvider"));
 document.getElementById("tabBatch").addEventListener("click", () => activateTab("tabBatch"));
+document.getElementById("tabElevenlabs").addEventListener("click", () => activateTab("tabElevenlabs"));
 
 els.routingTable.querySelector("thead").addEventListener("click", (event) => {
   const th = event.target.closest("th[data-sort]");
@@ -415,4 +429,6 @@ els.routingTable.querySelector("thead").addEventListener("click", (event) => {
   renderRoutingTable(els);
 });
 
+initElevenlabs({ showBanner });
+updateHeaderPills();
 renderRoutingTable(els);

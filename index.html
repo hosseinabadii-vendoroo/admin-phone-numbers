@@ -14,11 +14,12 @@
     <header class="hero">
       <div>
         <h1>Phone Numbers Admin</h1>
-        <p>Import Twilio numbers into ElevenLabs, inspect webhook status, and switch live voice + SMS between Vapi and ElevenLabs.</p>
+        <p>Import Twilio numbers into ElevenLabs, inspect webhook status, switch live voice + SMS, and manage the ElevenLabs workspace.</p>
       </div>
       <div class="pill-row">
         <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel">no base URL</span></div>
         <div class="pill" id="authPill">Bearer · missing</div>
+        <div class="pill" id="elPill">ElevenLabs · missing</div>
       </div>
     </header>
 
@@ -45,6 +46,7 @@
     <div class="tabs" role="tablist" aria-label="Admin views">
       <button class="tab" type="button" role="tab" id="tabProvider" aria-controls="panelProvider" aria-selected="true">Phone provider status</button>
       <button class="tab" type="button" role="tab" id="tabBatch" aria-controls="panelBatch" aria-selected="false">Batch tools</button>
+      <button class="tab" type="button" role="tab" id="tabElevenlabs" aria-controls="panelElevenlabs" aria-selected="false">ElevenLabs workspace</button>
     </div>
 
     <div class="tab-panel" id="panelProvider" role="tabpanel" aria-labelledby="tabProvider">
@@ -201,6 +203,58 @@
         <summary>Raw JSON response</summary>
         <pre id="rawJson"></pre>
       </details>
+    </div>
+
+    <div class="tab-panel" id="panelElevenlabs" role="tabpanel" aria-labelledby="tabElevenlabs" hidden>
+      <section class="card routing">
+        <div class="card-hd">
+          <div>
+            <h2>ElevenLabs workspace</h2>
+            <span>Phone numbers · environment variables · members</span>
+          </div>
+          <div class="hd-actions">
+            <span class="routing-meta" id="elWorkspaceMeta"></span>
+            <div class="busy" id="elBusy"><span class="spinner"></span><span id="elBusyLabel">Working…</span></div>
+            <button class="btn-info" id="btnElConnect" type="button">Connect</button>
+          </div>
+        </div>
+        <div class="card-bd el-workspace">
+          <div class="toolbar">
+            <div class="field el-key-field">
+              <label for="elApiKey">ElevenLabs API key</label>
+              <input id="elApiKey" type="password" spellcheck="false" autocomplete="off" placeholder="xi-..." />
+            </div>
+            <label class="check-inline" for="rememberElKey">
+              <input id="rememberElKey" type="checkbox" />
+              Remember this key on this device
+            </label>
+          </div>
+
+          <div class="tabs" id="elTabs" role="tablist" aria-label="ElevenLabs workspace views">
+            <button class="tab" type="button" role="tab" id="elTabPhones" data-tab="phones" aria-controls="elViewPhones" aria-selected="true">Phone numbers</button>
+            <button class="tab" type="button" role="tab" id="elTabEnvs" data-tab="envs" aria-controls="elViewEnvs" aria-selected="false">Environments</button>
+            <button class="tab" type="button" role="tab" id="elTabMembers" data-tab="members" aria-controls="elViewMembers" aria-selected="false">Members</button>
+          </div>
+
+          <div class="el-view" id="elViewPhones" role="tabpanel" aria-labelledby="elTabPhones">
+            <div class="table-wrap" id="elPhonePanel">
+              <div class="empty">Paste an ElevenLabs API key and connect.</div>
+            </div>
+          </div>
+
+          <div class="el-view" id="elViewEnvs" role="tabpanel" aria-labelledby="elTabEnvs" hidden>
+            <div class="table-wrap" id="elEnvPanel">
+              <div class="empty">Connect to load environment variables.</div>
+            </div>
+          </div>
+
+          <div class="el-view" id="elViewMembers" role="tabpanel" aria-labelledby="elTabMembers" hidden>
+            <div class="table-wrap" id="elMemberPanel">
+              <div class="empty">Connect to load members.</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
