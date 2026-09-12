@@ -1,4 +1,4 @@
-import { CACHE_KEY, CLIENT_IDS, STATUS_GAP_MS } from "./config.js";
+import { CACHE_KEY, CLIENT_IDS } from "./config.js";
 import { fetchPhoneNumberStatus, httpErrorMessage } from "./api.js";
 import { escapeHtml } from "./results.js";
 
@@ -162,6 +162,17 @@ export function providerLabel(provider) {
   return "unknown";
 }
 
+function formatStatusReason(reason) {
+  if (typeof reason !== "string") return "";
+
+  const value = reason.trim();
+  if (value === "twilio_list_failed") return "Twilio inventory list failed";
+  if (value === "twilio_number_not_found") return "Twilio number not found";
+  if (value === "no_assigned_phone_number") return "No assigned phone number";
+
+  return value;
+}
+
 function providerBadge(provider, url) {
   const key = provider === "elevenlabs" || provider === "vapi" ? provider : "unknown";
   const title = url ? ` title="${escapeHtml(url)}"` : "";
@@ -267,7 +278,7 @@ export function renderRoutingTable(els) {
     const row = routingEntryFor(clientId, cache);
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";
-    const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    const reason = formatStatusReason(row.reason);
     const note = row.rate_limited
       ? "Rate limited — skipped until the next refresh"
       : (row.error || reason || "—");
@@ -312,10 +323,6 @@ export function renderRoutingTable(els) {
   setRoutingControlsDisabled(els, false);
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function upsertRoutingCache(clientId, patch) {
   const cache = loadRoutingCache();
   const current = routingEntryFor(clientId, cache);
@@ -333,13 +340,7 @@ export function applyResultsToRoutingCache(els, payload) {
     if (row?.client_id == null) continue;
     if (!allowed.has(String(row.client_id))) continue;
 
-    const summary = summarizeStatusRow(row);
-    upsertRoutingCache(row.client_id, {
-      ...summary,
-      fetched_at: new Date().toISOString(),
-      rate_limited: false,
-      error: null,
-    });
+    upsertRoutingCache(row.client_id, cachePatchFromStatusRow(row.client_id, row));
   }
 
   if (uniqueClientIds().length) renderRoutingTable(els);
@@ -374,15 +375,30 @@ function applyStatusFetchResult(clientId, result) {
     return "error";
   }
 
+  upsertRoutingCache(clientId, cachePatchFromStatusRow(clientId, row));
+
+  return String(row.status || "").toLowerCase() === "error" ? "error" : "ok";
+}
+
+function cachePatchFromStatusRow(clientId, row) {
   const summary = summarizeStatusRow(row);
-  upsertRoutingCache(clientId, {
+  const failed = String(row.status || "").toLowerCase() === "error";
+  const current = routingEntryFor(clientId, loadRoutingCache());
+  const patch = {
     ...summary,
     fetched_at: new Date().toISOString(),
     rate_limited: false,
     error: null,
-  });
+  };
 
-  return "ok";
+  if (failed && !summary.primary_url) {
+    patch.primary = current.primary;
+    patch.fallback = current.fallback;
+    patch.primary_url = current.primary_url;
+    patch.fallback_url = current.fallback_url;
+  }
+
+  return patch;
 }
 
 export async function refreshOneClient(els, auth, twilio, clientId, { clearBanner, showBanner }) {
@@ -400,7 +416,7 @@ export async function refreshOneClient(els, auth, twilio, clientId, { clearBanne
       showBanner("info", `Client ${clientId} hit the rate limit. Cache was not updated.`);
     } else if (outcome === "error") {
       const cached = routingEntryFor(clientId, loadRoutingCache());
-      showBanner("error", cached.error || `Failed to refresh client ${clientId}`);
+      showBanner("error", cached.error || formatStatusReason(cached.reason) || `Failed to refresh client ${clientId}`);
     } else {
       showBanner("ok", `Updated client ${clientId} in the browser cache.`);
     }
@@ -419,44 +435,35 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
   els.routingBusy.classList.add("show");
   setRoutingControlsDisabled(els, true);
   clearBanner();
-
-  let ok = 0;
-  let limited = 0;
-  let errors = 0;
+  els.routingBusyLabel.textContent = `Refreshing ${ids.length} clients…`;
 
   try {
-    const skippedThisPass = new Set();
+    const result = await fetchPhoneNumberStatus(auth, ids, twilio);
 
-    for (let index = 0; index < ids.length; index += 1) {
-      const clientId = ids[index];
-      els.routingBusyLabel.textContent = `Refreshing ${index + 1}/${ids.length}…`;
-      updateRoutingMeta(els, loadRoutingCache(), `${index}/${ids.length}`);
-
-      if (skippedThisPass.has(String(clientId))) continue;
-
-      const result = await fetchPhoneNumberStatus(auth, [clientId], twilio);
-      const outcome = applyStatusFetchResult(clientId, result);
-
-      if (outcome === "limited") {
-        limited += 1;
-        skippedThisPass.add(String(clientId));
-      } else if (outcome === "error") {
-        errors += 1;
-      } else {
-        ok += 1;
-      }
-
-      renderRoutingTable(els);
-
-      if (index < ids.length - 1) {
-        await sleep(STATUS_GAP_MS);
-      }
+    if (result.status === 429) {
+      showBanner("info", "Status refresh hit the rate limit. Cache was not updated.");
+      return;
     }
 
-    const parts = [`Status refresh done — ${ok} cached`];
-    if (limited) parts.push(`${limited} rate-limited (skipped)`);
-    if (errors) parts.push(`${errors} error(s)`);
-    showBanner(errors || limited ? "info" : "ok", parts.join(" · "));
+    if (!result.ok) {
+      showBanner("error", httpErrorMessage(result.status, result.data, result.text, ""));
+      return;
+    }
+
+    applyResultsToRoutingCache(els, result.data);
+
+    const rows = Array.isArray(result.data?.results) ? result.data.results : [];
+    const errors = rows.filter((row) => String(row.status).toLowerCase() === "error");
+    const ok = rows.length - errors.length;
+    const listFailed = errors.some((row) => row.reason === "twilio_list_failed");
+
+    if (listFailed) {
+      showBanner("error", `Twilio inventory list failed — ${errors.length} client(s) not updated.`);
+    } else if (errors.length) {
+      showBanner("info", `Status refresh done — ${ok} cached · ${errors.length} error(s)`);
+    } else {
+      showBanner("ok", `Status refresh done — ${ok} cached`);
+    }
   } finally {
     routingRefreshActive = false;
     els.routingBusy.classList.remove("show");
