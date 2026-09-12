@@ -168,7 +168,9 @@ function formatStatusReason(reason) {
   const value = reason.trim();
   if (value === "twilio_list_failed") return "Twilio inventory list failed";
   if (value === "twilio_number_not_found") return "Twilio number not found";
+  if (value === "client_not_found") return "Client not found";
   if (value === "no_assigned_phone_number") return "No assigned phone number";
+  if (value === "invalid_assigned_phone_number") return "Invalid assigned phone number";
 
   return value;
 }
@@ -377,28 +379,61 @@ function applyStatusFetchResult(clientId, result) {
 
   upsertRoutingCache(clientId, cachePatchFromStatusRow(clientId, row));
 
-  return String(row.status || "").toLowerCase() === "error" ? "error" : "ok";
+  return isClientStatusMiss(row) ? "error" : "ok";
+}
+
+function statusReason(row) {
+  return typeof row?.reason === "string" ? row.reason.trim() : "";
+}
+
+function isTwilioListFailed(row) {
+  return statusReason(row) === "twilio_list_failed";
+}
+
+function isClientStatusMiss(row) {
+  if (isTwilioListFailed(row)) return false;
+
+  const status = String(row?.status || "").toLowerCase();
+
+  return status === "error" || status === "skipped";
 }
 
 function cachePatchFromStatusRow(clientId, row) {
   const summary = summarizeStatusRow(row);
-  const failed = String(row.status || "").toLowerCase() === "error";
   const current = routingEntryFor(clientId, loadRoutingCache());
-  const patch = {
+
+  if (isTwilioListFailed(row)) {
+    return {
+      api_status: summary.api_status,
+      reason: summary.reason,
+      rate_limited: false,
+      error: null,
+      fetched_at: current.fetched_at,
+      primary: current.primary,
+      fallback: current.fallback,
+      primary_url: current.primary_url,
+      fallback_url: current.fallback_url,
+      phone_number: current.phone_number,
+    };
+  }
+
+  if (isClientStatusMiss(row)) {
+    return {
+      ...emptyRoutingEntry(clientId),
+      phone_number: summary.phone_number,
+      api_status: summary.api_status,
+      reason: summary.reason,
+      elevenlabs_imported: summary.elevenlabs_imported,
+      fetched_at: new Date().toISOString(),
+    };
+  }
+
+  return {
     ...summary,
     fetched_at: new Date().toISOString(),
     rate_limited: false,
     error: null,
   };
-
-  if (failed && !summary.primary_url) {
-    patch.primary = current.primary;
-    patch.fallback = current.fallback;
-    patch.primary_url = current.primary_url;
-    patch.fallback_url = current.fallback_url;
-  }
-
-  return patch;
 }
 
 export async function refreshOneClient(els, auth, twilio, clientId, { clearBanner, showBanner }) {
@@ -450,17 +485,20 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
       return;
     }
 
-    applyResultsToRoutingCache(els, result.data);
-
     const rows = Array.isArray(result.data?.results) ? result.data.results : [];
-    const errors = rows.filter((row) => String(row.status).toLowerCase() === "error");
-    const ok = rows.length - errors.length;
-    const listFailed = errors.some((row) => row.reason === "twilio_list_failed");
+    const listFailed = rows.some(isTwilioListFailed);
+    const misses = rows.filter(isClientStatusMiss);
+    const ok = rows.length - misses.length;
 
     if (listFailed) {
-      showBanner("error", `Twilio inventory list failed — ${errors.length} client(s) not updated.`);
-    } else if (errors.length) {
-      showBanner("info", `Status refresh done — ${ok} cached · ${errors.length} error(s)`);
+      showBanner("error", "Twilio inventory list failed. Previous cache was kept.");
+      return;
+    }
+
+    applyResultsToRoutingCache(els, result.data);
+
+    if (misses.length) {
+      showBanner("info", `Status refresh done — ${ok} cached · ${misses.length} cleared (not found / skipped)`);
     } else {
       showBanner("ok", `Status refresh done — ${ok} cached`);
     }
