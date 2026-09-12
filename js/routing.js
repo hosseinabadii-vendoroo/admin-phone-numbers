@@ -334,6 +334,14 @@ export function upsertRoutingCache(clientId, patch) {
   return cache;
 }
 
+function replaceRoutingCache(clientId, entry) {
+  const cache = loadRoutingCache();
+  cache[String(clientId)] = { ...emptyRoutingEntry(clientId), ...entry, client_id: clientId };
+  saveRoutingCache(cache);
+
+  return cache;
+}
+
 export function applyResultsToRoutingCache(els, payload) {
   const results = Array.isArray(payload?.results) ? payload.results : [];
   const allowed = new Set(uniqueClientIds().map(String));
@@ -341,6 +349,12 @@ export function applyResultsToRoutingCache(els, payload) {
   for (const row of results) {
     if (row?.client_id == null) continue;
     if (!allowed.has(String(row.client_id))) continue;
+    if (isTwilioListFailed(row)) continue;
+
+    if (isClientStatusMiss(row)) {
+      replaceRoutingCache(row.client_id, missCacheEntry(row.client_id, row));
+      continue;
+    }
 
     upsertRoutingCache(row.client_id, cachePatchFromStatusRow(row.client_id, row));
   }
@@ -377,9 +391,19 @@ function applyStatusFetchResult(clientId, result) {
     return "error";
   }
 
+  if (isTwilioListFailed(row)) {
+    return "error";
+  }
+
+  if (isClientStatusMiss(row)) {
+    replaceRoutingCache(clientId, missCacheEntry(clientId, row));
+
+    return "error";
+  }
+
   upsertRoutingCache(clientId, cachePatchFromStatusRow(clientId, row));
 
-  return isClientStatusMiss(row) ? "error" : "ok";
+  return "ok";
 }
 
 function statusReason(row) {
@@ -390,42 +414,36 @@ function isTwilioListFailed(row) {
   return statusReason(row) === "twilio_list_failed";
 }
 
+const CLEAR_CACHE_REASONS = new Set([
+  "twilio_number_not_found",
+  "client_not_found",
+  "no_assigned_phone_number",
+  "invalid_assigned_phone_number",
+]);
+
 function isClientStatusMiss(row) {
   if (isTwilioListFailed(row)) return false;
 
-  const status = String(row?.status || "").toLowerCase();
+  return CLEAR_CACHE_REASONS.has(statusReason(row));
+}
 
-  return status === "error" || status === "skipped";
+function missCacheEntry(clientId, row) {
+  const summary = summarizeStatusRow(row);
+
+  return {
+    ...emptyRoutingEntry(clientId),
+    phone_number: summary.phone_number,
+    api_status: summary.api_status,
+    reason: summary.reason,
+    fetched_at: new Date().toISOString(),
+  };
 }
 
 function cachePatchFromStatusRow(clientId, row) {
   const summary = summarizeStatusRow(row);
-  const current = routingEntryFor(clientId, loadRoutingCache());
-
-  if (isTwilioListFailed(row)) {
-    return {
-      api_status: summary.api_status,
-      reason: summary.reason,
-      rate_limited: false,
-      error: null,
-      fetched_at: current.fetched_at,
-      primary: current.primary,
-      fallback: current.fallback,
-      primary_url: current.primary_url,
-      fallback_url: current.fallback_url,
-      phone_number: current.phone_number,
-    };
-  }
 
   if (isClientStatusMiss(row)) {
-    return {
-      ...emptyRoutingEntry(clientId),
-      phone_number: summary.phone_number,
-      api_status: summary.api_status,
-      reason: summary.reason,
-      elevenlabs_imported: summary.elevenlabs_imported,
-      fetched_at: new Date().toISOString(),
-    };
+    return missCacheEntry(clientId, row);
   }
 
   return {
@@ -488,16 +506,18 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
     const rows = Array.isArray(result.data?.results) ? result.data.results : [];
     const listFailed = rows.some(isTwilioListFailed);
     const misses = rows.filter(isClientStatusMiss);
-    const ok = rows.length - misses.length;
-
-    if (listFailed) {
-      showBanner("error", "Twilio inventory list failed. Previous cache was kept.");
-      return;
-    }
+    const ok = rows.filter((row) => !isTwilioListFailed(row) && !isClientStatusMiss(row)).length;
 
     applyResultsToRoutingCache(els, result.data);
 
-    if (misses.length) {
+    if (listFailed && misses.length) {
+      showBanner(
+        "info",
+        `Status refresh done — ${ok} cached · ${misses.length} cleared · Twilio list failed for the rest (cache kept)`,
+      );
+    } else if (listFailed) {
+      showBanner("error", "Twilio inventory list failed. Previous cache was kept.");
+    } else if (misses.length) {
       showBanner("info", `Status refresh done — ${ok} cached · ${misses.length} cleared (not found / skipped)`);
     } else {
       showBanner("ok", `Status refresh done — ${ok} cached`);
