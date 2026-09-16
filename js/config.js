@@ -40,7 +40,7 @@ export const CLIENT_IDS = [
   1003, 1004, 1005, 1006, 1008, 1009, 1010,
 ];
 
-export const CACHE_KEY = "phone-admin:client-routing:v1";
+export const CACHE_KEY = "phone-admin:client-routing:v2";
 
 export const ELEVENLABS_API = "https://api.elevenlabs.io/v1";
 export const EL_KEY_STORAGE = "phone-admin:el-api-key";

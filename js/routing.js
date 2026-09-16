@@ -57,6 +57,14 @@ function sortedClientIds(ids, cache) {
       return compareProviders(left.fallback, right.fallback, leftId, rightId);
     }
 
+    if (sortKey === "primary_sms") {
+      return compareProviders(left.primary_sms, right.primary_sms, leftId, rightId);
+    }
+
+    if (sortKey === "fallback_sms") {
+      return compareProviders(left.fallback_sms, right.fallback_sms, leftId, rightId);
+    }
+
     return sortDir === "asc" ? leftId - rightId : rightId - leftId;
   });
 
@@ -121,6 +129,17 @@ function detectProvider(url) {
   return "unknown";
 }
 
+function detectSmsProvider(url) {
+  if (!url) return "unknown";
+
+  const value = url.toLowerCase();
+
+  if (value.includes("elevenlabs")) return "elevenlabs";
+  if (value.includes("vapi") || value.includes("marketplace")) return "vapi";
+
+  return "unknown";
+}
+
 export function firstResult(payload) {
   if (Array.isArray(payload?.results) && payload.results.length) return payload.results[0];
   if (payload && typeof payload === "object" && payload.client_id != null) return payload;
@@ -141,6 +160,18 @@ export function summarizeStatusRow(row) {
     "fallback_voice_url",
     "voice_url_fallback",
   ]);
+  const primarySmsUrl = pickFirstString(row, [
+    "sms_url",
+    "SmsUrl",
+    "primary_sms_url",
+    "sms_primary_url",
+  ]);
+  const fallbackSmsUrl = pickFirstString(row, [
+    "sms_fallback_url",
+    "SmsFallbackUrl",
+    "fallback_sms_url",
+    "sms_url_fallback",
+  ]);
 
   return {
     client_id: row?.client_id ?? null,
@@ -152,6 +183,10 @@ export function summarizeStatusRow(row) {
     fallback: detectProvider(fallbackUrl),
     primary_url: primaryUrl || null,
     fallback_url: fallbackUrl || null,
+    primary_sms: detectSmsProvider(primarySmsUrl),
+    fallback_sms: detectSmsProvider(fallbackSmsUrl),
+    primary_sms_url: primarySmsUrl || null,
+    fallback_sms_url: fallbackSmsUrl || null,
   };
 }
 
@@ -204,6 +239,10 @@ function emptyRoutingEntry(clientId) {
     fallback: "unknown",
     primary_url: null,
     fallback_url: null,
+    primary_sms: "unknown",
+    fallback_sms: "unknown",
+    primary_sms_url: null,
+    fallback_sms_url: null,
     fetched_at: null,
     rate_limited: false,
     error: null,
@@ -280,6 +319,8 @@ export function renderRoutingTable(els) {
     const row = routingEntryFor(clientId, cache);
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";
+    const primarySms = row.primary_sms || "unknown";
+    const fallbackSms = row.fallback_sms || "unknown";
     const reason = formatStatusReason(row.reason);
     const note = row.rate_limited
       ? "Rate limited — skipped until the next refresh"
@@ -305,6 +346,8 @@ export function renderRoutingTable(els) {
             <td class="mono">${escapeHtml(phone)}</td>
             <td class="cell-middle">${providerBadge(primary, row.primary_url)}</td>
             <td class="cell-middle">${providerBadge(fallback, row.fallback_url)}</td>
+            <td class="cell-middle">${providerBadge(primarySms, row.primary_sms_url)}</td>
+            <td class="cell-middle">${providerBadge(fallbackSms, row.fallback_sms_url)}</td>
             <td class="switch-cell">
               <div class="row-switch" role="group" aria-label="Switch provider for ${escapeHtml(clientId)}">
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="elevenlabs" class="${elCurrent.trim()}">ElevenLabs</button>

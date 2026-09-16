@@ -41,7 +41,7 @@ body {
 a { color: var(--accent); }
 
 .wrap {
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 28px 20px 64px;
 }
@@ -872,7 +872,11 @@ dialog .dlg-actions {
   justify-content: flex-end;
 }
 
-.routing table { min-width: 920px; }
+.routing table { min-width: 1240px; }
+
+.routing th.th-sort {
+  white-space: nowrap;
+}
 
 .routing table td {
   vertical-align: middle;
