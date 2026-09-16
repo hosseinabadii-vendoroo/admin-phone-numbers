@@ -23,7 +23,8 @@ export function setRoutingSort(key) {
 
 function providerSortValue(value) {
   if (value === "elevenlabs") return 0;
-  if (value === "vapi") return 1;
+  if (value === "vapi_native") return 1;
+  if (value === "vapi") return 2;
 
   return null;
 }
@@ -58,11 +59,11 @@ function sortedClientIds(ids, cache) {
     }
 
     if (sortKey === "primary_sms") {
-      return compareProviders(left.primary_sms, right.primary_sms, leftId, rightId);
+      return compareProviders(smsProviderFromRow(left, "primary_sms"), smsProviderFromRow(right, "primary_sms"), leftId, rightId);
     }
 
     if (sortKey === "fallback_sms") {
-      return compareProviders(left.fallback_sms, right.fallback_sms, leftId, rightId);
+      return compareProviders(smsProviderFromRow(left, "fallback_sms"), smsProviderFromRow(right, "fallback_sms"), leftId, rightId);
     }
 
     return sortDir === "asc" ? leftId - rightId : rightId - leftId;
@@ -135,9 +136,19 @@ function detectSmsProvider(url) {
   const value = url.toLowerCase();
 
   if (value.includes("elevenlabs")) return "elevenlabs";
-  if (value.includes("vapi") || value.includes("marketplace")) return "vapi";
+  if (value.includes("vapi")) return "vapi_native";
+  if (value.includes("marketplace")) return "vapi";
 
   return "unknown";
+}
+
+function smsProviderFromRow(row, key) {
+  const urlKey = key === "fallback_sms" ? "fallback_sms_url" : "primary_sms_url";
+  const url = row?.[urlKey];
+
+  if (url) return detectSmsProvider(url);
+
+  return row?.[key] || "unknown";
 }
 
 export function firstResult(payload) {
@@ -192,6 +203,7 @@ export function summarizeStatusRow(row) {
 
 export function providerLabel(provider) {
   if (provider === "elevenlabs") return "elevenlabs";
+  if (provider === "vapi_native") return "vapi native";
   if (provider === "vapi") return "vapi";
 
   return "unknown";
@@ -211,7 +223,9 @@ function formatStatusReason(reason) {
 }
 
 function providerBadge(provider, url) {
-  const key = provider === "elevenlabs" || provider === "vapi" ? provider : "unknown";
+  const key = provider === "elevenlabs" || provider === "vapi" || provider === "vapi_native"
+    ? (provider === "vapi_native" ? "vapi" : provider)
+    : "unknown";
   const title = url ? ` title="${escapeHtml(url)}"` : "";
 
   return `<span class="badge badge-${key}"${title}>${escapeHtml(providerLabel(provider))}</span>`;
@@ -319,8 +333,8 @@ export function renderRoutingTable(els) {
     const row = routingEntryFor(clientId, cache);
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";
-    const primarySms = row.primary_sms || "unknown";
-    const fallbackSms = row.fallback_sms || "unknown";
+    const primarySms = smsProviderFromRow(row, "primary_sms");
+    const fallbackSms = smsProviderFromRow(row, "fallback_sms");
     const reason = formatStatusReason(row.reason);
     const note = row.rate_limited
       ? "Rate limited — skipped until the next refresh"
