@@ -655,6 +655,7 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(255, 255, 255, 0.015); }
 
 .mono { font-family: var(--mono); font-size: 0.8rem; }
+.is-new-client { color: var(--warn); font-weight: 600; }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
 

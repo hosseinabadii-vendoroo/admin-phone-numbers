@@ -1,6 +1,8 @@
-import { CACHE_KEY, CLIENT_IDS } from "./config.js";
+import { CACHE_KEY, CLIENT_IDS, NEW_CLIENT_IDS } from "./config.js";
 import { fetchPhoneNumberStatus, httpErrorMessage } from "./api.js";
 import { escapeHtml } from "./results.js";
+
+const NEW_CLIENT_ID_SET = new Set(NEW_CLIENT_IDS);
 
 let routingRefreshActive = false;
 let sortKey = "client";
@@ -354,9 +356,11 @@ export function renderRoutingTable(els) {
       noteMarkup = escapeHtml("—");
     }
 
+    const clientClass = NEW_CLIENT_ID_SET.has(clientId) ? "mono is-new-client" : "mono";
+
     return `
           <tr data-client-id="${escapeHtml(clientId)}">
-            <td class="mono">${escapeHtml(clientId)}</td>
+            <td class="${clientClass}">${escapeHtml(clientId)}</td>
             <td class="mono">${escapeHtml(phone)}</td>
             <td class="cell-middle">${providerBadge(primary, row.primary_url)}</td>
             <td class="cell-middle">${providerBadge(fallback, row.fallback_url)}</td>
