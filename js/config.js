@@ -42,6 +42,12 @@ export const CLIENT_IDS = [
   1016, 1018, 1019, 1020, 1021, 1022, 1030,
 ];
 
+// Clients added in the latest fleet update. The status table marks these as new.
+export const NEW_CLIENT_IDS = [
+  81, 766, 786, 969, 979, 980, 997, 998, 1007, 1011,
+  1012, 1013, 1014, 1016, 1018, 1019, 1020, 1021, 1022, 1030,
+];
+
 export const CACHE_KEY = "phone-admin:client-routing:v2";
 
 export const ELEVENLABS_API = "https://api.elevenlabs.io/v1";

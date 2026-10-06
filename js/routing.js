@@ -1,10 +1,19 @@
-import { CACHE_KEY, CLIENT_IDS } from "./config.js";
+import { CACHE_KEY, CLIENT_IDS, NEW_CLIENT_IDS } from "./config.js";
 import { fetchPhoneNumberStatus, httpErrorMessage } from "./api.js";
 import { escapeHtml } from "./results.js";
+
+const NEW_CLIENT_ID_SET = new Set(NEW_CLIENT_IDS);
 
 let routingRefreshActive = false;
 let sortKey = "client";
 let sortDir = "asc";
+let newClientsOnly = false;
+
+export function toggleNewClientsOnly() {
+  newClientsOnly = !newClientsOnly;
+
+  return newClientsOnly;
+}
 
 export function uniqueClientIds() {
   const ids = CLIENT_IDS.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
@@ -291,8 +300,10 @@ function updateRoutingMeta(els, cache, extra = "") {
     else unknown += 1;
   }
 
+  const newlyAdded = ids.filter((id) => NEW_CLIENT_ID_SET.has(id)).length;
   const chips = [
     `<span class="stat">${ids.length} clients</span>`,
+    `<span class="stat new">${newlyAdded} new</span>`,
     `<span class="stat ok">${eleven} elevenlabs</span>`,
     `<span class="stat info">${vapi} vapi</span>`,
     `<span class="stat skip">${unknown} unknown</span>`,
@@ -312,10 +323,22 @@ export function setRoutingControlsDisabled(els, on) {
   }
 }
 
+function syncNewFilterButton() {
+  const button = document.getElementById("btnNewClients");
+  if (!button) return;
+
+  const count = NEW_CLIENT_ID_SET.size;
+  button.classList.toggle("is-on", newClientsOnly);
+  button.setAttribute("aria-pressed", newClientsOnly ? "true" : "false");
+  button.textContent = newClientsOnly ? `Showing ${count} new` : `New only (${count})`;
+}
+
 export function renderRoutingTable(els) {
   const ids = uniqueClientIds();
   const cache = loadRoutingCache();
+  const visibleIds = newClientsOnly ? ids.filter((id) => NEW_CLIENT_ID_SET.has(id)) : ids;
   updateRoutingMeta(els, cache);
+  syncNewFilterButton();
 
   if (!ids.length) {
     els.routingEmpty.hidden = false;
@@ -326,10 +349,19 @@ export function renderRoutingTable(els) {
     return;
   }
 
+  if (!visibleIds.length) {
+    els.routingEmpty.hidden = false;
+    els.routingEmpty.textContent = "No newly added client IDs in this fleet.";
+    els.routingTable.hidden = true;
+    els.routingBody.innerHTML = "";
+
+    return;
+  }
+
   els.routingEmpty.hidden = true;
   els.routingTable.hidden = false;
   updateSortHeaders(els);
-  els.routingBody.innerHTML = sortedClientIds(ids, cache).map((clientId) => {
+  els.routingBody.innerHTML = sortedClientIds(visibleIds, cache).map((clientId) => {
     const row = routingEntryFor(clientId, cache);
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";
@@ -354,9 +386,14 @@ export function renderRoutingTable(els) {
       noteMarkup = escapeHtml("—");
     }
 
+    const isNew = NEW_CLIENT_ID_SET.has(clientId);
+    const newBadge = isNew
+      ? `<span class="badge badge-new" title="Added in the latest fleet list">new</span>`
+      : "";
+
     return `
-          <tr data-client-id="${escapeHtml(clientId)}">
-            <td class="mono">${escapeHtml(clientId)}</td>
+          <tr class="${isNew ? "is-new" : ""}" data-client-id="${escapeHtml(clientId)}">
+            <td class="mono client-id-cell">${escapeHtml(clientId)}${newBadge}</td>
             <td class="mono">${escapeHtml(phone)}</td>
             <td class="cell-middle">${providerBadge(primary, row.primary_url)}</td>
             <td class="cell-middle">${providerBadge(fallback, row.fallback_url)}</td>

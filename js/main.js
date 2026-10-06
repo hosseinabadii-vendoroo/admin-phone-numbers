@@ -12,6 +12,7 @@ import {
   setRoutingControlsDisabled,
   setRoutingSort,
   stopRoutingRefresh,
+  toggleNewClientsOnly,
 } from "./routing.js";
 import { initElevenlabs } from "./elevenlabs.js";
 
@@ -420,6 +421,11 @@ function activateTab(tabId) {
 document.getElementById("tabProvider").addEventListener("click", () => activateTab("tabProvider"));
 document.getElementById("tabBatch").addEventListener("click", () => activateTab("tabBatch"));
 document.getElementById("tabElevenlabs").addEventListener("click", () => activateTab("tabElevenlabs"));
+
+document.getElementById("btnNewClients").addEventListener("click", () => {
+  toggleNewClientsOnly();
+  renderRoutingTable(els);
+});
 
 els.routingTable.querySelector("thead").addEventListener("click", (event) => {
   const th = event.target.closest("th[data-sort]");
