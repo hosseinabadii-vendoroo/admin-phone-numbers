@@ -440,7 +440,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
 .stat.ok { color: var(--ok); border-color: rgba(52, 211, 153, 0.35); background: var(--ok-dim); }
 .stat.err { color: var(--danger); border-color: rgba(248, 113, 113, 0.35); background: var(--danger-dim); }
-.stat.skip, .stat.new { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-dim); }
+.stat.skip { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-dim); }
 .stat.info { color: var(--info); border-color: rgba(96, 165, 250, 0.35); background: var(--info-dim); }
 
 .toasts {
@@ -653,25 +653,6 @@ th {
 tr:last-child td { border-bottom: none; }
 
 tr:hover td { background: rgba(255, 255, 255, 0.015); }
-
-tr.is-new td { background: rgba(251, 191, 36, 0.07); }
-tr.is-new:hover td { background: rgba(251, 191, 36, 0.12); }
-
-.client-id-cell { white-space: nowrap; }
-
-.badge-new {
-  margin-left: 8px;
-  background: var(--warn-dim);
-  color: var(--warn);
-  border-color: rgba(251, 191, 36, 0.35);
-  vertical-align: middle;
-}
-
-#btnNewClients.is-on {
-  background: var(--warn-dim);
-  color: #fde68a;
-  border-color: rgba(251, 191, 36, 0.35);
-}
 
 .mono { font-family: var(--mono); font-size: 0.8rem; }
 .muted { color: var(--text-muted); }
