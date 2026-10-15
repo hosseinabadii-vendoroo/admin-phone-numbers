@@ -656,6 +656,9 @@ tr:hover td { background: rgba(255, 255, 255, 0.015); }
 
 .mono { font-family: var(--mono); font-size: 0.8rem; }
 .is-new-client { color: var(--warn); font-weight: 600; }
+.is-inactive-client { color: var(--danger); font-weight: 600; }
+tbody tr.is-inactive td { background: var(--danger-dim); }
+tbody tr.is-inactive:hover td { background: rgba(248, 113, 113, 0.22); }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
 
