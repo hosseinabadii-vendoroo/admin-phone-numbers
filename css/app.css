@@ -655,10 +655,6 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(255, 255, 255, 0.015); }
 
 .mono { font-family: var(--mono); font-size: 0.8rem; }
-.is-new-client { color: var(--warn); font-weight: 600; }
-.is-inactive-client { color: var(--danger); font-weight: 600; }
-tbody tr.is-inactive td { background: var(--danger-dim); }
-tbody tr.is-inactive:hover td { background: rgba(248, 113, 113, 0.22); }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
 
@@ -875,6 +871,16 @@ dialog .dlg-actions {
   align-items: center;
   justify-content: flex-end;
 }
+
+.routing-source {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.routing-source.ok { color: var(--ok); background: var(--ok-dim); }
+.routing-source.warn { color: var(--warn); background: var(--warn-dim); }
 
 .routing table { min-width: 1240px; }
 

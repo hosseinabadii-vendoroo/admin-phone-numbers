@@ -1,18 +1,69 @@
-import { CACHE_KEY, CLIENT_IDS, INACTIVE_CLIENT_IDS, NEW_CLIENT_IDS } from "./config.js";
-import { fetchPhoneNumberStatus, httpErrorMessage } from "./api.js";
+import { CACHE_KEY, CLIENT_IDS, CLIENT_LIST_KEY } from "./config.js";
+import { fetchPhoneNumberStatus, getRooceptionistClientIds, httpErrorMessage } from "./api.js";
 import { escapeHtml } from "./results.js";
-
-const NEW_CLIENT_ID_SET = new Set(NEW_CLIENT_IDS);
-const INACTIVE_CLIENT_ID_SET = new Set(INACTIVE_CLIENT_IDS);
 
 let routingRefreshActive = false;
 let sortKey = "client";
 let sortDir = "asc";
 
+function loadClientList() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CLIENT_LIST_KEY) || "null");
+
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveClientList(list) {
+  localStorage.setItem(CLIENT_LIST_KEY, JSON.stringify(list));
+}
+
+function isSyncedList(list) {
+  return list?.source === "marketplace" && Array.isArray(list.ids) && list.ids.length > 0;
+}
+
 export function uniqueClientIds() {
-  const ids = CLIENT_IDS.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+  const list = loadClientList();
+  const source = isSyncedList(list) ? list.ids : CLIENT_IDS;
+  const ids = source.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
 
   return [...new Set(ids)];
+}
+
+async function syncClientList(auth) {
+  try {
+    const ids = await getRooceptionistClientIds(auth);
+    saveClientList({ source: "marketplace", ids, synced_at: new Date().toISOString() });
+
+    return { synced: true, count: ids.length };
+  } catch (err) {
+    const error = err?.message || String(err);
+    saveClientList({ source: "fallback", error, attempted_at: new Date().toISOString() });
+
+    return { synced: false, error };
+  }
+}
+
+function renderClientSource(els) {
+  const list = loadClientList();
+  const notice = els.routingSource;
+
+  if (isSyncedList(list)) {
+    notice.className = "routing-source ok";
+    notice.textContent =
+      `Clients are synced with Marketplace: ${list.ids.length} active, Rooceptionist-enabled clients, loaded ${formatFetched(list.synced_at)}.`;
+  } else if (list?.source === "fallback") {
+    notice.className = "routing-source warn";
+    notice.textContent =
+      `Loading clients from Marketplace failed (${list.error}). You are seeing the hard-coded client list.`;
+  } else {
+    notice.className = "routing-source";
+    notice.textContent = "Showing the hard-coded client list. Click Refresh all to sync clients with Marketplace.";
+  }
+
+  notice.hidden = false;
 }
 
 export function setRoutingSort(key) {
@@ -294,7 +345,6 @@ function updateRoutingMeta(els, cache, extra = "") {
     else unknown += 1;
   }
 
-  const inactive = ids.filter((id) => INACTIVE_CLIENT_ID_SET.has(id)).length;
   const chips = [
     `<span class="stat">${ids.length} clients</span>`,
     `<span class="stat ok">${eleven} elevenlabs</span>`,
@@ -302,8 +352,6 @@ function updateRoutingMeta(els, cache, extra = "") {
     `<span class="stat skip">${unknown} unknown</span>`,
     `<span class="stat">${fetched} cached</span>`,
   ];
-
-  if (inactive) chips.push(`<span class="stat err">${inactive} inactive</span>`);
 
   if (limited) chips.push(`<span class="stat err">${limited} rate-limited</span>`);
   if (extra) chips.push(`<span class="stat">${escapeHtml(extra)}</span>`);
@@ -322,10 +370,11 @@ export function renderRoutingTable(els) {
   const ids = uniqueClientIds();
   const cache = loadRoutingCache();
   updateRoutingMeta(els, cache);
+  renderClientSource(els);
 
   if (!ids.length) {
     els.routingEmpty.hidden = false;
-    els.routingEmpty.innerHTML = "Add client IDs to <code>js/config.js</code> (<code>CLIENT_IDS</code>), then use Refresh all.";
+    els.routingEmpty.textContent = "No clients to show. Click Refresh all to load clients from Marketplace.";
     els.routingTable.hidden = true;
     els.routingBody.innerHTML = "";
 
@@ -360,15 +409,9 @@ export function renderRoutingTable(els) {
       noteMarkup = escapeHtml("—");
     }
 
-    const inactiveClient = INACTIVE_CLIENT_ID_SET.has(clientId);
-    const clientClass = inactiveClient
-      ? "mono is-inactive-client"
-      : (NEW_CLIENT_ID_SET.has(clientId) ? "mono is-new-client" : "mono");
-    const rowClass = inactiveClient ? ' class="is-inactive"' : "";
-
     return `
-          <tr${rowClass} data-client-id="${escapeHtml(clientId)}">
-            <td class="${clientClass}"${inactiveClient ? ' title="Inactive client"' : ""}>${escapeHtml(clientId)}</td>
+          <tr data-client-id="${escapeHtml(clientId)}">
+            <td class="mono">${escapeHtml(clientId)}</td>
             <td class="mono">${escapeHtml(phone)}</td>
             <td class="cell-middle">${providerBadge(primary, row.primary_url)}</td>
             <td class="cell-middle">${providerBadge(fallback, row.fallback_url)}</td>
@@ -550,16 +593,24 @@ export async function refreshOneClient(els, auth, twilio, clientId, { clearBanne
 }
 
 export async function refreshRouting(els, auth, twilio, { clearBanner, showBanner }) {
-  const ids = uniqueClientIds();
-  if (!ids.length) throw new Error("CLIENT_IDS is empty — paste client IDs in js/config.js");
-
   routingRefreshActive = true;
   els.routingBusy.classList.add("show");
   setRoutingControlsDisabled(els, true);
   clearBanner();
-  els.routingBusyLabel.textContent = `Refreshing ${ids.length} clients…`;
+  els.routingBusyLabel.textContent = "Loading clients from Marketplace…";
 
   try {
+    const sync = await syncClientList(auth);
+    renderClientSource(els);
+
+    if (!sync.synced) {
+      showBanner("info", `Loading clients from Marketplace failed (${sync.error}). Using the hard-coded client list.`);
+    }
+
+    const ids = uniqueClientIds();
+    if (!ids.length) throw new Error("No client IDs to refresh: Marketplace sync failed and CLIENT_IDS is empty");
+
+    els.routingBusyLabel.textContent = `Refreshing ${ids.length} clients…`;
     const result = await fetchPhoneNumberStatus(auth, ids, twilio);
 
     if (result.status === 429) {

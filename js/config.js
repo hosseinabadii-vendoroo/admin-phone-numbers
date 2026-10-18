@@ -3,8 +3,8 @@ export const CONFIG = {
   token: "",
 };
 
-// Production Marketplace: tClients joined to tClientRooceptionistSettings.
-// Assigned phone, including test and sandbox. Inactive clients stay in this list.
+// Fallback when the voice-agent rooceptionist-clients endpoint fails. Refresh all
+// normally loads the live list (active, not deleted, Rooceptionist enabled) from it.
 export const CLIENT_IDS = [
   81, 109, 135, 144, 145, 191, 194, 198, 206, 217,
   231, 244, 253, 256, 263, 264, 265, 272, 276, 277,
@@ -47,21 +47,8 @@ export const CLIENT_IDS = [
   1024, 1025, 1026, 1027, 1029, 1030, 1031,
 ];
 
-// Marketplace clients that are inactive and have Rooceptionist disabled. Still listed in CLIENT_IDS.
-export const INACTIVE_CLIENT_IDS = [
-  191, 287, 485, 529, 583, 795,
-];
-
-export const NEW_CLIENT_IDS = [
-  81, 231, 281, 349, 353, 391, 394, 403, 404, 407,
-  441, 444, 451, 457, 463, 468, 477, 489, 490, 507,
-  514, 516, 525, 530, 532, 536, 537, 546, 551, 563,
-  567, 570, 571, 579, 586, 588, 628, 637, 697, 716,
-  717, 729, 730, 767, 828, 1015, 1024, 1025, 1026, 1027,
-  1029, 1031,
-];
-
 export const CACHE_KEY = "phone-admin:client-routing:v2";
+export const CLIENT_LIST_KEY = "phone-admin:client-list:v1";
 
 export const ELEVENLABS_API = "https://api.elevenlabs.io/v1";
 export const EL_KEY_STORAGE = "phone-admin:el-api-key";

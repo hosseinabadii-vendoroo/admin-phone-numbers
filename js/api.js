@@ -71,6 +71,19 @@ export function getPhoneNumberStatus(auth, clientIds, twilio) {
   return apiRequest(auth, "GET", statusQuery(clientIds, twilio));
 }
 
+export async function getRooceptionistClientIds(auth) {
+  const data = await apiRequest(auth, "GET", "/api/admin/phone-numbers/rooceptionist-clients");
+
+  if (!Array.isArray(data?.client_ids)) {
+    throw new Error("Client list response had no client_ids array");
+  }
+
+  const ids = data.client_ids.map(Number).filter((id) => Number.isInteger(id) && id > 0);
+  if (!ids.length) throw new Error("Client list response was empty");
+
+  return ids;
+}
+
 export function importElevenlabs(auth, clientIds, forwardVoice, twilio) {
   const body = {
     client_ids: clientIds,
