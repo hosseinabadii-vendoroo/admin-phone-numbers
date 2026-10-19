@@ -63,6 +63,10 @@
           </div>
         </div>
         <div class="routing-source" id="routingSource" role="status" hidden></div>
+        <div class="routing-search">
+          <input id="routingSearch" type="search" spellcheck="false" autocomplete="off" placeholder="Search by client ID or phone number" aria-label="Search by client ID or phone number" />
+          <span class="routing-search-count" id="routingSearchCount" aria-live="polite"></span>
+        </div>
         <div class="table-wrap" id="routingPanel">
           <div class="empty" id="routingEmpty">No clients to show. Click Refresh all to load clients from Marketplace.</div>
           <table id="routingTable" hidden>

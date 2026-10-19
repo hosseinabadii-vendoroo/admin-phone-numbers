@@ -48,6 +48,8 @@ const els = {
   routingEmpty: document.getElementById("routingEmpty"),
   routingTable: document.getElementById("routingTable"),
   routingBody: document.getElementById("routingBody"),
+  routingSearch: document.getElementById("routingSearch"),
+  routingSearchCount: document.getElementById("routingSearchCount"),
   elApiKey: document.getElementById("elApiKey"),
   elPill: document.getElementById("elPill"),
 };
@@ -427,6 +429,14 @@ els.routingTable.querySelector("thead").addEventListener("click", (event) => {
   if (!th) return;
 
   setRoutingSort(th.getAttribute("data-sort"));
+  renderRoutingTable(els);
+});
+
+els.routingSearch.addEventListener("input", () => renderRoutingTable(els));
+els.routingSearch.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !els.routingSearch.value) return;
+
+  els.routingSearch.value = "";
   renderRoutingTable(els);
 });
 

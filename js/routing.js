@@ -373,6 +373,61 @@ export function setRoutingControlsDisabled(els, on) {
   }
 }
 
+function digitsOnly(value) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+const PHONE_EXTENSION = /\s*(?:;?\s*ext(?:ension)?\.?\s*=?|x|#)\s*\d+\s*$/i;
+
+const KEYPAD_LETTERS = {
+  a: "2", b: "2", c: "2",
+  d: "3", e: "3", f: "3",
+  g: "4", h: "4", i: "4",
+  j: "5", k: "5", l: "5",
+  m: "6", n: "6", o: "6",
+  p: "7", q: "7", r: "7", s: "7",
+  t: "8", u: "8", v: "8",
+  w: "9", x: "9", y: "9", z: "9",
+};
+
+/**
+ * Reduces typed phone input to the digits a caller would dial: drops "ext 12" / "x12" / "#12",
+ * and turns vanity letters into keypad digits ("1-800-FLOWERS") when the input also has digits.
+ */
+function phoneQueryDigits(query) {
+  const withoutExtension = query.replace(PHONE_EXTENSION, "");
+  const hasDigits = /\d/.test(withoutExtension);
+  const dialed = hasDigits
+    ? withoutExtension.toLowerCase().replace(/[a-z]/g, (letter) => KEYPAD_LETTERS[letter])
+    : withoutExtension;
+
+  return digitsOnly(dialed);
+}
+
+/**
+ * Canonical "1NXXNXXXXXX" form for US/Canada numbers, so input with or without the +1
+ * country code is a substring of it. Non-NANP numbers fall back to their raw digits.
+ */
+function nanpPhoneKey(phone) {
+  const digits = digitsOnly(phone);
+  if (digits.length === 10) return `1${digits}`;
+
+  return digits;
+}
+
+function matchesSearch(row, query) {
+  if (!query) return true;
+
+  const needle = query.toLowerCase();
+  const phone = String(row.phone_number || "").toLowerCase();
+  if (String(row.client_id).includes(needle) || phone.includes(needle)) return true;
+  if (!phone) return false;
+
+  const digits = phoneQueryDigits(query);
+
+  return Boolean(digits) && nanpPhoneKey(phone).includes(digits);
+}
+
 export function renderRoutingTable(els) {
   const ids = uniqueClientIds();
   const cache = loadRoutingCache();
@@ -384,6 +439,20 @@ export function renderRoutingTable(els) {
     els.routingEmpty.textContent = "No clients to show. Click Refresh all to load clients from Marketplace.";
     els.routingTable.hidden = true;
     els.routingBody.innerHTML = "";
+    els.routingSearchCount.textContent = "";
+
+    return;
+  }
+
+  const query = els.routingSearch.value.trim();
+  const visibleIds = sortedClientIds(ids, cache).filter((id) => matchesSearch(routingEntryFor(id, cache), query));
+  els.routingSearchCount.textContent = query ? `${visibleIds.length} of ${ids.length} clients` : "";
+
+  if (!visibleIds.length) {
+    els.routingEmpty.hidden = false;
+    els.routingEmpty.textContent = `No clients match "${query}".`;
+    els.routingTable.hidden = true;
+    els.routingBody.innerHTML = "";
 
     return;
   }
@@ -391,7 +460,7 @@ export function renderRoutingTable(els) {
   els.routingEmpty.hidden = true;
   els.routingTable.hidden = false;
   updateSortHeaders(els);
-  els.routingBody.innerHTML = sortedClientIds(ids, cache).map((clientId) => {
+  els.routingBody.innerHTML = visibleIds.map((clientId) => {
     const row = routingEntryFor(clientId, cache);
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";
