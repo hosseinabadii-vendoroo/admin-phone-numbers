@@ -415,17 +415,36 @@ function nanpPhoneKey(phone) {
   return digits;
 }
 
-function matchesSearch(row, query) {
-  if (!query) return true;
+const MIN_PHONE_DIGITS = 7;
 
-  const needle = query.toLowerCase();
-  const phone = String(row.phone_number || "").toLowerCase();
-  if (String(row.client_id).includes(needle) || phone.includes(needle)) return true;
+function isClientIdQuery(query) {
+  return /^\d+$/.test(query) && query.length < MIN_PHONE_DIGITS;
+}
+
+function matchesPhone(phone, query) {
   if (!phone) return false;
+
+  const value = String(phone).toLowerCase();
+  if (value.includes(query.toLowerCase())) return true;
 
   const digits = phoneQueryDigits(query);
 
-  return Boolean(digits) && nanpPhoneKey(phone).includes(digits);
+  return Boolean(digits) && nanpPhoneKey(value).includes(digits);
+}
+
+/**
+ * A plain number shorter than a phone number is read as a client ID and must match exactly.
+ * Formatted or longer input, or a short number no client has as its ID, searches phone numbers.
+ */
+function filterClientIds(ids, cache, query) {
+  if (!query) return ids;
+
+  if (isClientIdQuery(query)) {
+    const exact = ids.filter((id) => id === Number(query));
+    if (exact.length) return exact;
+  }
+
+  return ids.filter((id) => matchesPhone(routingEntryFor(id, cache).phone_number, query));
 }
 
 export function renderRoutingTable(els) {
@@ -445,7 +464,7 @@ export function renderRoutingTable(els) {
   }
 
   const query = els.routingSearch.value.trim();
-  const visibleIds = sortedClientIds(ids, cache).filter((id) => matchesSearch(routingEntryFor(id, cache), query));
+  const visibleIds = filterClientIds(sortedClientIds(ids, cache), cache, query);
   els.routingSearchCount.textContent = query ? `${visibleIds.length} of ${ids.length} clients` : "";
 
   if (!visibleIds.length) {
