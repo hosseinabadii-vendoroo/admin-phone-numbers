@@ -1,4 +1,4 @@
-import { CACHE_KEY, CLIENT_IDS, CLIENT_LIST_KEY } from "./config.js";
+import { CACHE_KEY, CLIENT_LIST_KEY } from "./config.js";
 import { fetchPhoneNumberStatus, getRooceptionistClientIds, httpErrorMessage } from "./api.js";
 import { escapeHtml } from "./results.js";
 
@@ -20,14 +20,15 @@ function saveClientList(list) {
   localStorage.setItem(CLIENT_LIST_KEY, JSON.stringify(list));
 }
 
-function isSyncedList(list) {
-  return list?.source === "marketplace" && Array.isArray(list.ids) && list.ids.length > 0;
+function hasSyncedIds(list) {
+  return Array.isArray(list?.ids) && list.ids.length > 0;
 }
 
 export function uniqueClientIds() {
   const list = loadClientList();
-  const source = isSyncedList(list) ? list.ids : CLIENT_IDS;
-  const ids = source.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!hasSyncedIds(list)) return [];
+
+  const ids = list.ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
 
   return [...new Set(ids)];
 }
@@ -35,32 +36,38 @@ export function uniqueClientIds() {
 async function syncClientList(auth) {
   try {
     const ids = await getRooceptionistClientIds(auth);
-    saveClientList({ source: "marketplace", ids, synced_at: new Date().toISOString() });
+    saveClientList({ ids, synced_at: new Date().toISOString() });
 
     return { synced: true, count: ids.length };
   } catch (err) {
     const error = err?.message || String(err);
-    saveClientList({ source: "fallback", error, attempted_at: new Date().toISOString() });
+    const previous = loadClientList();
+    const kept = hasSyncedIds(previous) ? { ids: previous.ids, synced_at: previous.synced_at } : {};
+    saveClientList({ ...kept, error, failed_at: new Date().toISOString() });
 
-    return { synced: false, error };
+    return { synced: false, error, hasPrevious: hasSyncedIds(kept) };
   }
 }
 
 function renderClientSource(els) {
   const list = loadClientList();
   const notice = els.routingSource;
+  const synced = hasSyncedIds(list);
 
-  if (isSyncedList(list)) {
+  if (synced && !list.error) {
     notice.className = "routing-source ok";
     notice.textContent =
       `Clients are synced with Marketplace: ${list.ids.length} active, Rooceptionist-enabled clients, loaded ${formatFetched(list.synced_at)}.`;
-  } else if (list?.source === "fallback") {
+  } else if (synced) {
     notice.className = "routing-source warn";
     notice.textContent =
-      `Loading clients from Marketplace failed (${list.error}). You are seeing the hard-coded client list.`;
+      `Loading clients from Marketplace failed (${list.error}). You are seeing the last synced list (${list.ids.length} clients, loaded ${formatFetched(list.synced_at)}).`;
+  } else if (list?.error) {
+    notice.className = "routing-source warn";
+    notice.textContent = `Loading clients from Marketplace failed (${list.error}). There is no client list to show yet.`;
   } else {
     notice.className = "routing-source";
-    notice.textContent = "Showing the hard-coded client list. Click Refresh all to sync clients with Marketplace.";
+    notice.textContent = "Click Refresh all to load clients from Marketplace.";
   }
 
   notice.hidden = false;
@@ -603,12 +610,15 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
     const sync = await syncClientList(auth);
     renderClientSource(els);
 
+    if (!sync.synced && !sync.hasPrevious) {
+      throw new Error(`Loading clients from Marketplace failed (${sync.error})`);
+    }
+
     if (!sync.synced) {
-      showBanner("info", `Loading clients from Marketplace failed (${sync.error}). Using the hard-coded client list.`);
+      showBanner("info", `Loading clients from Marketplace failed (${sync.error}). Using the last synced client list.`);
     }
 
     const ids = uniqueClientIds();
-    if (!ids.length) throw new Error("No client IDs to refresh: Marketplace sync failed and CLIENT_IDS is empty");
 
     els.routingBusyLabel.textContent = `Refreshing ${ids.length} clients…`;
     const result = await fetchPhoneNumberStatus(auth, ids, twilio);
