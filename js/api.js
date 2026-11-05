@@ -5,7 +5,7 @@ export function httpErrorMessage(status, data, text, statusText) {
   return `HTTP ${status}: ${detailText}`;
 }
 
-export async function fetchJson(auth, method, path, body) {
+export async function fetchJson(auth, method, path, body, signal) {
   const base = String(auth?.baseUrl || "").trim().replace(/\/$/, "");
   let token = String(auth?.token || "").trim();
 
@@ -23,6 +23,8 @@ export async function fetchJson(auth, method, path, body) {
     Accept: "application/json",
   };
   const init = { method, headers };
+
+  if (signal) init.signal = signal;
 
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -105,4 +107,12 @@ export function switchPhoneProvider(auth, clientIds, provider, forwardVoice, twi
   if (twilio) Object.assign(body, twilio);
 
   return apiRequest(auth, "POST", "/api/admin/phone-numbers/switch-phone-provider", body);
+}
+
+export function assignArm(auth, clientIds, arm, dryRun) {
+  return apiRequest(auth, "POST", "/api/admin/phone-numbers/assign-arm", {
+    client_ids: clientIds,
+    arm,
+    dry_run: dryRun,
+  });
 }

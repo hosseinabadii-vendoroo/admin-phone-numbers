@@ -1,5 +1,7 @@
-import { CACHE_KEY, CLIENT_LIST_KEY } from "./config.js";
+import { CACHE_KEY, CLIENT_LIST_KEY, EL_AGENTS_KEY } from "./config.js";
 import { fetchPhoneNumberStatus, getRooceptionistClientIds, httpErrorMessage } from "./api.js";
+import { listPhoneNumbers } from "./elevenlabs-api.js";
+import { getAbHealth, getRouterHealth, refreshAbHealth, refreshRouterHealth } from "./server-health.js";
 import { escapeHtml } from "./results.js";
 
 let routingRefreshActive = false;
@@ -47,6 +49,231 @@ async function syncClientList(auth) {
 
     return { synced: false, error, hasPrevious: hasSyncedIds(kept) };
   }
+}
+
+function loadElAgents() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EL_AGENTS_KEY) || "null");
+
+    return parsed && typeof parsed === "object" && parsed.numbers ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearElAgents() {
+  try {
+    localStorage.removeItem(EL_AGENTS_KEY);
+  } catch {
+    // Storage can be blocked; nothing was kept then.
+  }
+}
+
+/**
+ * Fetches the ElevenLabs phone numbers and keeps which agent each one is attached to,
+ * keyed by the number's canonical digits. Without a key, or when the fetch fails, the saved
+ * data is dropped so an old agent or arm is never shown as if it were current.
+ * Returns { error, count }; error is "" on success.
+ */
+async function syncElAgents(apiKey) {
+  if (!apiKey) {
+    clearElAgents();
+
+    return { error: "no ElevenLabs API key", count: 0 };
+  }
+
+  try {
+    const phones = await listPhoneNumbers(apiKey);
+    const numbers = {};
+
+    for (const phone of Array.isArray(phones) ? phones : []) {
+      const key = nanpPhoneKey(phone.phone_number);
+      if (!key) continue;
+
+      const agent = phone.assigned_agent || {};
+      numbers[key] = {
+        agent_id: agent.agent_id || null,
+        agent_name: agent.agent_name || null,
+        environment: agent.environment || null,
+        label: phone.label || null,
+      };
+    }
+
+    localStorage.setItem(EL_AGENTS_KEY, JSON.stringify({ numbers, synced_at: new Date().toISOString() }));
+
+    return { error: "", count: Object.keys(numbers).length };
+  } catch (err) {
+    clearElAgents();
+
+    return { error: err?.message || String(err), count: 0 };
+  }
+}
+
+const ARM_SUFFIX = "-ab";
+
+function elEntryFor(phone, elAgents) {
+  return phone ? elAgents?.numbers[nanpPhoneKey(phone)] || null : null;
+}
+
+/** "router" for the control arm, "router_ab" for the treatment arm, null when it can't be told. */
+function armOf(entry) {
+  if (!entry?.agent_id || !entry.environment) return null;
+
+  return entry.environment.endsWith(ARM_SUFFIX) ? "router_ab" : "router";
+}
+
+/**
+ * The server names arms after its ENVIRONMENT ("production" / "production-ab"), so the arm for a
+ * target comes from the environment the clients' ElevenLabs numbers are already pinned to.
+ */
+export function resolveArm(clientIds, target) {
+  const cache = loadRoutingCache();
+  const elAgents = loadElAgents();
+  const bases = new Set();
+
+  for (const id of clientIds) {
+    const entry = elEntryFor(routingEntryFor(id, cache).phone_number, elAgents);
+    if (entry?.environment) bases.add(entry.environment.replace(/-ab$/, ""));
+  }
+
+  if (!bases.size) {
+    return { error: "No ElevenLabs environment known for these clients. Add the ElevenLabs API key and click Refresh all first." };
+  }
+
+  if (bases.size > 1) {
+    return { error: `These clients are in different environments (${[...bases].join(", ")}). Move them separately.` };
+  }
+
+  const [base] = bases;
+
+  return { arm: target === "ab" ? `${base}${ARM_SUFFIX}` : base };
+}
+
+export function armLabel(target) {
+  return target === "ab" ? "Router AB" : "Router";
+}
+
+function abIsDown() {
+  return getAbHealth().state === "down";
+}
+
+function clientsOnAb() {
+  const cache = loadRoutingCache();
+  const elAgents = loadElAgents();
+
+  return uniqueClientIds().filter(
+    (id) => armOf(elEntryFor(routingEntryFor(id, cache).phone_number, elAgents)) === "router_ab",
+  );
+}
+
+/**
+ * A down Router AB server only matters when clients are on it, so the warning bar shows only then
+ * (or when we cannot tell). Otherwise the status is just the small chip in the header.
+ */
+function abWarning() {
+  if (!abIsDown()) return null;
+
+  if (!loadElAgents()) {
+    return {
+      kind: "warn",
+      html: "<strong>Router AB server is down</strong> and the page cannot tell which clients are on it. Add the ElevenLabs API key and click Refresh all.",
+    };
+  }
+
+  const onAb = clientsOnAb();
+  if (!onAb.length) return null;
+
+  return {
+    kind: "err",
+    html: `<strong>Router AB server is down</strong> and ${onAb.length === 1 ? "this client is" : "these clients are"} on Router AB: ${escapeHtml(onAb.join(", "))}. Switch ${onAb.length === 1 ? "it" : "them"} back to Router, or ask someone with access to bring the server up.`,
+  };
+}
+
+const PILL_LABELS = { up: "up", down: "off", checking: "checking…", idle: "not checked" };
+
+function renderServerPill(pill, label, name, health) {
+  if (!pill) return;
+
+  pill.classList.toggle("live", health.state === "up");
+  pill.title = health.detail || "";
+  label.textContent = `${name}: ${PILL_LABELS[health.state] || PILL_LABELS.idle}`;
+}
+
+function renderServerPills(els) {
+  renderServerPill(els.connPill, els.connLabel, "Router", getRouterHealth());
+  renderServerPill(els.abPill, els.abLabel, "Router AB", getAbHealth());
+}
+
+function renderAbStatus(els) {
+  renderServerPills(els);
+
+  const node = els.abStatus;
+  if (!node) return;
+
+  const warning = abWarning();
+
+  if (!warning) {
+    node.hidden = true;
+
+    return;
+  }
+
+  node.className = `routing-source ${warning.kind}`;
+  node.innerHTML = `${warning.html} Moving clients to Router AB is turned off until it is back.`;
+  node.hidden = false;
+}
+
+/** Asks the Router and Router AB servers for their health, redrawing the pills around the calls. */
+export async function refreshServerStatus(els, auth) {
+  renderAbStatus(els);
+  const pending = Promise.all([refreshRouterHealth(auth), refreshAbHealth(auth)]);
+  renderAbStatus(els);
+  const [router, ab] = await pending;
+  renderRoutingTable(els);
+
+  return { router, ab };
+}
+
+export function showStaleServerStatus(els) {
+  renderAbStatus(els);
+}
+
+export async function refreshElAgents(els, apiKey) {
+  const { error } = await syncElAgents(apiKey);
+  renderRoutingTable(els);
+
+  return error;
+}
+
+function armHint(phone, entry, elAgents) {
+  if (abIsDown()) {
+    return armOf(entry) === "router_ab"
+      ? "Router AB server is off and this client is on it: switch it back to Router"
+      : "Router AB server is off: only Router can be chosen";
+  }
+  if (!phone) return "No phone number";
+  if (!elAgents) return "Add an ElevenLabs API key and click Refresh all to load this number";
+  if (!entry) return "This number is not in the ElevenLabs workspace";
+  if (!entry.agent_id) return "No agent assigned in ElevenLabs";
+
+  return `Agent: ${entry.agent_name || entry.agent_id}`;
+}
+
+function elArmCell(clientId, phone, elAgents) {
+  const entry = elEntryFor(phone, elAgents);
+  const current = armOf(entry);
+  const noData = !entry?.environment;
+  const title = ` title="${escapeHtml(armHint(phone, entry, elAgents))}"`;
+  const button = (target, arm) => {
+    const stuck = current === "router_ab" && arm === "router_ab" && abIsDown();
+    const cls = stuck ? ' class="is-current is-alert"' : current === arm ? ' class="is-current"' : "";
+    const off = noData || (target === "ab" && abIsDown());
+    const attrs = off ? " disabled data-arm-unavailable" : "";
+
+    return `<button type="button" data-arm-client="${escapeHtml(clientId)}" data-arm-target="${target}"${cls}${attrs}>${armLabel(target)}</button>`;
+  };
+
+  return `<div class="row-switch" role="group" aria-label="Move client ${escapeHtml(clientId)} to an arm"${title}>${button("control", "router")}${button("ab", "router_ab")}</div>`;
 }
 
 function renderClientSource(els) {
@@ -104,19 +331,39 @@ function compareProviders(leftValue, rightValue, leftId, rightId) {
   return sortDir === "asc" ? cmp : -cmp;
 }
 
-function sortedClientIds(ids, cache) {
+function armRank(phone, elAgents) {
+  const arm = armOf(elEntryFor(phone, elAgents));
+
+  if (arm === "router") return 0;
+  if (arm === "router_ab") return 1;
+
+  return null;
+}
+
+function compareArms(leftRank, rightRank, leftId, rightId) {
+  if (leftRank == null && rightRank == null) return leftId - rightId;
+  if (leftRank == null) return 1;
+  if (rightRank == null) return -1;
+
+  let cmp = leftRank - rightRank;
+  if (cmp === 0) cmp = leftId - rightId;
+
+  return sortDir === "asc" ? cmp : -cmp;
+}
+
+function sortedClientIds(ids, cache, elAgents) {
   const copy = [...ids];
 
   copy.sort((leftId, rightId) => {
     const left = routingEntryFor(leftId, cache);
     const right = routingEntryFor(rightId, cache);
 
-    if (sortKey === "primary") {
-      return compareProviders(left.primary, right.primary, leftId, rightId);
+    if (sortKey === "arm") {
+      return compareArms(armRank(left.phone_number, elAgents), armRank(right.phone_number, elAgents), leftId, rightId);
     }
 
-    if (sortKey === "fallback") {
-      return compareProviders(left.fallback, right.fallback, leftId, rightId);
+    if (sortKey === "primary") {
+      return compareProviders(left.primary, right.primary, leftId, rightId);
     }
 
     if (sortKey === "primary_sms") {
@@ -369,7 +616,7 @@ export function setRoutingControlsDisabled(els, on) {
   els.btnRefreshRouting.disabled = on || routingRefreshActive;
 
   for (const btn of els.routingBody.querySelectorAll("button")) {
-    btn.disabled = on || routingRefreshActive;
+    btn.disabled = on || routingRefreshActive || btn.hasAttribute("data-arm-unavailable");
   }
 }
 
@@ -450,8 +697,10 @@ function filterClientIds(ids, cache, query) {
 export function renderRoutingTable(els) {
   const ids = uniqueClientIds();
   const cache = loadRoutingCache();
+  const elAgents = loadElAgents();
   updateRoutingMeta(els, cache);
   renderClientSource(els);
+  renderAbStatus(els);
 
   if (!ids.length) {
     els.routingEmpty.hidden = false;
@@ -464,7 +713,7 @@ export function renderRoutingTable(els) {
   }
 
   const query = els.routingSearch.value.trim();
-  const visibleIds = filterClientIds(sortedClientIds(ids, cache), cache, query);
+  const visibleIds = filterClientIds(sortedClientIds(ids, cache, elAgents), cache, query);
   els.routingSearchCount.textContent = query ? `${visibleIds.length} of ${ids.length} clients` : "";
 
   if (!visibleIds.length) {
@@ -484,6 +733,7 @@ export function renderRoutingTable(els) {
     const primary = row.primary || "unknown";
     const fallback = row.fallback || "unknown";
     const primarySms = smsProviderFromRow(row, "primary_sms");
+    const switchTitle = `Primary voice: ${providerLabel(primary)} · Fallback voice: ${providerLabel(fallback)}`;
     const fallbackSms = smsProviderFromRow(row, "fallback_sms");
     const reason = formatStatusReason(row.reason);
     const note = row.rate_limited
@@ -492,7 +742,6 @@ export function renderRoutingTable(els) {
     const elCurrent = primary === "elevenlabs" ? " is-current" : "";
     const vapiCurrent = primary === "vapi" ? " is-current" : "";
     const phone = row.phone_number || "—";
-    const fetched = formatFetched(row.fetched_at);
     const noteEmpty = !row.rate_limited && !row.error && !reason;
     let noteMarkup = `<span class="note-alert">${escapeHtml(note)}</span>`;
 
@@ -508,22 +757,15 @@ export function renderRoutingTable(els) {
           <tr data-client-id="${escapeHtml(clientId)}">
             <td class="mono">${escapeHtml(clientId)}</td>
             <td class="mono">${escapeHtml(phone)}</td>
-            <td class="cell-middle">${providerBadge(primary, row.primary_url)}</td>
-            <td class="cell-middle">${providerBadge(fallback, row.fallback_url)}</td>
-            <td class="cell-middle">${providerBadge(primarySms, row.primary_sms_url)}</td>
-            <td class="cell-middle">${providerBadge(fallbackSms, row.fallback_sms_url)}</td>
             <td class="switch-cell">
-              <div class="row-switch" role="group" aria-label="Switch provider for ${escapeHtml(clientId)}">
+              <div class="row-switch" role="group" aria-label="Switch provider for ${escapeHtml(clientId)}" title="${escapeHtml(switchTitle)}">
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="elevenlabs" class="${elCurrent.trim()}">ElevenLabs</button>
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="vapi" class="${vapiCurrent.trim()}">Vapi</button>
               </div>
             </td>
-            <td>
-              <div class="row-fetched">
-                <span class="mono faint">${escapeHtml(fetched)}</span>
-                <button type="button" class="btn-ghost btn-row-refresh" data-refresh-client="${escapeHtml(clientId)}">Refresh</button>
-              </div>
-            </td>
+            <td class="switch-cell">${elArmCell(clientId, row.phone_number, elAgents)}</td>
+            <td class="cell-middle">${providerBadge(primarySms, row.primary_sms_url)}</td>
+            <td class="cell-middle">${providerBadge(fallbackSms, row.fallback_sms_url)}</td>
             <td class="note-cell">${noteMarkup}</td>
           </tr>
         `;
@@ -687,7 +929,7 @@ export async function refreshOneClient(els, auth, twilio, clientId, { clearBanne
   }
 }
 
-export async function refreshRouting(els, auth, twilio, { clearBanner, showBanner }) {
+export async function refreshRouting(els, auth, twilio, { clearBanner, showBanner, elApiKey }) {
   routingRefreshActive = true;
   els.routingBusy.classList.add("show");
   setRoutingControlsDisabled(els, true);
@@ -708,16 +950,26 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
 
     const ids = uniqueClientIds();
 
+    els.routingBusyLabel.textContent = "Loading ElevenLabs agents and checking Router AB…";
+    const [el] = await Promise.all([syncElAgents(elApiKey), refreshAbHealth(auth), refreshRouterHealth(auth)]);
+    const elError = el.error;
+    const elNote = !elError
+      ? ` ElevenLabs agents updated (${el.count} numbers).`
+      : elApiKey
+        ? ` ElevenLabs agents could not be loaded (${elError}), so the ElevenLabs agent column is empty.`
+        : " No ElevenLabs API key, so the ElevenLabs agent column is empty.";
+
+    const abNote = () => (abWarning() ? " Router AB server is down, see the warning above the table." : "");
     els.routingBusyLabel.textContent = `Refreshing ${ids.length} clients…`;
     const result = await fetchPhoneNumberStatus(auth, ids, twilio);
 
     if (result.status === 429) {
-      showBanner("info", "Status refresh hit the rate limit. Cache was not updated.");
+      showBanner("info", `Status refresh hit the rate limit. Cache was not updated.${elNote}${abNote()}`);
       return;
     }
 
     if (!result.ok) {
-      showBanner("error", httpErrorMessage(result.status, result.data, result.text, ""));
+      showBanner("error", `${httpErrorMessage(result.status, result.data, result.text, "")}.${elNote}${abNote()}`);
       return;
     }
 
@@ -731,14 +983,14 @@ export async function refreshRouting(els, auth, twilio, { clearBanner, showBanne
     if (listFailed && misses.length) {
       showBanner(
         "info",
-        `Status refresh done — ${ok} cached · ${misses.length} cleared · Twilio list failed for the rest (cache kept)`,
+        `Status refresh done — ${ok} cached · ${misses.length} cleared · Twilio list failed for the rest (cache kept).${elNote}${abNote()}`,
       );
     } else if (listFailed) {
-      showBanner("error", "Twilio inventory list failed. Previous cache was kept.");
+      showBanner("error", `Twilio inventory list failed. Previous cache was kept.${elNote}${abNote()}`);
     } else if (misses.length) {
-      showBanner("info", `Status refresh done — ${ok} cached · ${misses.length} cleared (not found / skipped)`);
+      showBanner("info", `Status refresh done — ${ok} cached · ${misses.length} cleared (not found / skipped).${elNote}${abNote()}`);
     } else {
-      showBanner("ok", `Status refresh done — ${ok} cached`);
+      showBanner(elError || abWarning() ? "info" : "ok", `Status refresh done — ${ok} cached.${elNote}${abNote()}`);
     }
   } finally {
     routingRefreshActive = false;

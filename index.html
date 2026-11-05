@@ -14,30 +14,47 @@
     <header class="hero">
       <div>
         <h1>Phone Numbers Admin</h1>
-        <p>Import Twilio numbers into ElevenLabs, inspect webhook status, switch live voice + SMS, and manage the ElevenLabs workspace.</p>
-      </div>
-      <div class="pill-row">
-        <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel">no base URL</span></div>
-        <div class="pill" id="authPill">Bearer · missing</div>
-        <div class="pill" id="elPill">ElevenLabs · missing</div>
       </div>
     </header>
 
     <section class="card auth-bar">
       <div class="card-bd">
+        <div class="field">
+          <div class="label-row">
+            <label for="baseUrl">Base URL</label>
+            <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel"></span></div>
+            <div class="pill" id="abPill"><span class="dot"></span><span id="abLabel"></span></div>
+          </div>
+          <input id="baseUrl" type="text" spellcheck="false" />
+          <div class="hint">Includes PATH_PREFIX. Example: http://localhost:8000/vendoroo-voice-agent</div>
+        </div>
         <div class="row-2">
           <div class="field">
-            <label for="baseUrl">Base URL</label>
-            <input id="baseUrl" type="text" spellcheck="false" />
-            <div class="hint">Includes PATH_PREFIX. Example: http://localhost:8000/vendoroo-voice-agent</div>
-          </div>
-          <div class="field">
-            <label for="token">Bearer token</label>
+            <div class="label-row">
+              <label for="token">Bearer token</label>
+              <div class="pill" id="authPill"><span class="dot"></span><span id="authLabel">missing</span></div>
+            </div>
             <div class="input-with-prefix">
               <span class="prefix">Bearer</span>
               <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="paste token only" />
             </div>
+            <label class="check-inline" for="rememberToken">
+              <input id="rememberToken" type="checkbox" checked />
+              Remember this token on this device
+            </label>
             <div class="hint">Paste the raw token only — the prefix is added automatically.</div>
+          </div>
+          <div class="field">
+            <div class="label-row">
+              <label for="elApiKey">ElevenLabs API key</label>
+              <div class="pill" id="elPill"><span class="dot"></span><span id="elLabel">missing</span></div>
+            </div>
+            <input id="elApiKey" type="password" spellcheck="false" autocomplete="off" placeholder="xi-..." />
+            <label class="check-inline" for="rememberElKey">
+              <input id="rememberElKey" type="checkbox" checked />
+              Remember this key on this device
+            </label>
+            <div class="hint">Used for the ElevenLabs agent column and the ElevenLabs workspace tab.</div>
           </div>
         </div>
       </div>
@@ -63,6 +80,7 @@
           </div>
         </div>
         <div class="routing-source" id="routingSource" role="status" hidden></div>
+        <div class="routing-source" id="abStatus" role="status" hidden></div>
         <div class="routing-search">
           <input id="routingSearch" type="search" spellcheck="false" autocomplete="off" placeholder="Search by client ID or phone number" aria-label="Search by client ID or phone number" />
           <span class="routing-search-count" id="routingSearchCount" aria-live="polite"></span>
@@ -74,12 +92,10 @@
               <tr>
                 <th data-sort="client" class="th-sort" aria-sort="ascending" title="Sort by client">Client</th>
                 <th>Phone</th>
-                <th data-sort="primary" class="th-sort" aria-sort="none" title="Sort by primary voice">Primary voice</th>
-                <th data-sort="fallback" class="th-sort" aria-sort="none" title="Sort by fallback voice">Fallback voice</th>
+                <th data-sort="primary" class="th-sort" aria-sort="none" title="Sort by voice provider">Voice provider</th>
+                <th data-sort="arm" class="th-sort" aria-sort="none" title="Sort by ElevenLabs agent">ElevenLabs agent</th>
                 <th data-sort="primary_sms" class="th-sort" aria-sort="none" title="Sort by primary SMS">Primary SMS</th>
                 <th data-sort="fallback_sms" class="th-sort" aria-sort="none" title="Sort by fallback SMS">Fallback SMS</th>
-                <th>Switch</th>
-                <th>Fetched</th>
                 <th>Note</th>
               </tr>
             </thead>
@@ -178,6 +194,21 @@
                   <button class="btn-warn" id="btnSwitch" type="button">Switch</button>
                 </div>
               </div>
+
+              <div class="action">
+                <div>
+                  <h3>Move to arm</h3>
+                  <p>POST · assign-arm · set the ElevenLabs agent + environment (Router or Router AB)</p>
+                </div>
+                <div class="meta">
+                  <div class="provider-toggle" role="radiogroup" aria-label="Target arm">
+                    <label><input type="radio" name="arm" value="control" checked /> Router</label>
+                    <label><input type="radio" name="arm" value="ab" /> Router AB</label>
+                  </div>
+                  <button class="btn-info" id="btnArmPreview" type="button">Preview</button>
+                  <button class="btn-warn" id="btnArmApply" type="button">Apply</button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -226,17 +257,6 @@
           </div>
         </div>
         <div class="card-bd el-workspace">
-          <div class="toolbar">
-            <div class="field el-key-field">
-              <label for="elApiKey">ElevenLabs API key</label>
-              <input id="elApiKey" type="password" spellcheck="false" autocomplete="off" placeholder="xi-..." />
-            </div>
-            <label class="check-inline" for="rememberElKey">
-              <input id="rememberElKey" type="checkbox" />
-              Remember this key on this device
-            </label>
-          </div>
-
           <div class="tabs" id="elTabs" role="tablist" aria-label="ElevenLabs workspace views">
             <button class="tab" type="button" role="tab" id="elTabPhones" data-tab="phones" aria-controls="elViewPhones" aria-selected="true">Phone numbers</button>
             <button class="tab" type="button" role="tab" id="elTabEnvs" data-tab="envs" aria-controls="elViewEnvs" aria-selected="false">Environments</button>
@@ -267,7 +287,7 @@
 
   <dialog id="confirmDialog">
     <div class="dlg-bd">
-      <h3>Switch live provider?</h3>
+      <h3 id="confirmTitle">Switch live provider?</h3>
       <p id="confirmText">This updates Twilio webhook URLs for the selected clients.</p>
     </div>
     <div class="dlg-actions">

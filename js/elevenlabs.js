@@ -1,4 +1,4 @@
-import { EL_KEY_STORAGE, EL_TWILIO_SID_KEY } from "./config.js";
+import { EL_TWILIO_SID_KEY } from "./config.js";
 import { escapeHtml } from "./results.js";
 import {
   createEnvVar as apiCreateEnvVar,
@@ -167,24 +167,6 @@ function collectEnvironments(variables, phones) {
 
 function apiKey() {
   return String(els.apiKey?.value || "").trim();
-}
-
-function persistKey(key) {
-  if (els.remember.checked) {
-    localStorage.setItem(EL_KEY_STORAGE, key);
-    sessionStorage.removeItem(EL_KEY_STORAGE);
-  } else {
-    localStorage.removeItem(EL_KEY_STORAGE);
-    sessionStorage.setItem(EL_KEY_STORAGE, key);
-  }
-}
-
-function restoreKey() {
-  const stored = localStorage.getItem(EL_KEY_STORAGE) || sessionStorage.getItem(EL_KEY_STORAGE);
-  if (!stored) return;
-
-  els.apiKey.value = stored;
-  els.remember.checked = Boolean(localStorage.getItem(EL_KEY_STORAGE));
 }
 
 function setElBusy(on, label) {
@@ -526,7 +508,6 @@ async function connect() {
     const who = (userResult && (userResult.first_name || userResult.email || userResult.user_id)) || "workspace";
     updateWorkspaceMeta(who);
     els.connectBtn.textContent = "Refresh";
-    persistKey(key);
 
     const agentIds = [...new Set(state.phones.map((phone) => assigned(phone).agent_id).filter(Boolean))];
     await Promise.all(agentIds.map((id) => loadBranches(id)));
@@ -881,7 +862,6 @@ export function initElevenlabs(callbacks) {
   els.busy = document.getElementById("elBusy");
   els.busyLabel = document.getElementById("elBusyLabel");
 
-  restoreKey();
   bindEvents();
   render();
 }

@@ -1,19 +1,26 @@
-import { CONFIG } from "./config.js";
-import { getPhoneNumberStatus, importElevenlabs, switchPhoneProvider } from "./api.js";
+import { BEARER_TOKEN_STORAGE, CONFIG, EL_KEY_STORAGE } from "./config.js";
+import { bindStoredSecret } from "./credentials.js";
+import { assignArm, getPhoneNumberStatus, importElevenlabs, switchPhoneProvider } from "./api.js";
 import { renderResults } from "./results.js";
 import {
   applyResultsToRoutingCache,
+  armLabel,
   loadRoutingCache,
   providerLabel,
+  refreshServerStatus,
+  refreshElAgents,
   refreshOneClient,
   refreshRouting,
   renderRoutingTable,
+  resolveArm,
   routingEntryFor,
   setRoutingControlsDisabled,
   setRoutingSort,
+  showStaleServerStatus,
   stopRoutingRefresh,
 } from "./routing.js";
 import { initElevenlabs } from "./elevenlabs.js";
+import { getAbHealth, resetServerHealth } from "./server-health.js";
 
 const els = {
   baseUrl: document.getElementById("baseUrl"),
@@ -33,18 +40,25 @@ const els = {
   connLabel: document.getElementById("connLabel"),
   connPill: document.getElementById("connPill"),
   authPill: document.getElementById("authPill"),
+  authLabel: document.getElementById("authLabel"),
   confirmDialog: document.getElementById("confirmDialog"),
+  confirmTitle: document.getElementById("confirmTitle"),
   confirmText: document.getElementById("confirmText"),
   confirmOk: document.getElementById("confirmOk"),
   confirmCancel: document.getElementById("confirmCancel"),
   btnStatus: document.getElementById("btnStatus"),
   btnImport: document.getElementById("btnImport"),
   btnSwitch: document.getElementById("btnSwitch"),
+  btnArmPreview: document.getElementById("btnArmPreview"),
+  btnArmApply: document.getElementById("btnArmApply"),
   btnRefreshRouting: document.getElementById("btnRefreshRouting"),
   routingBusy: document.getElementById("routingBusy"),
   routingBusyLabel: document.getElementById("routingBusyLabel"),
   routingMeta: document.getElementById("routingMeta"),
   routingSource: document.getElementById("routingSource"),
+  abStatus: document.getElementById("abStatus"),
+  abPill: document.getElementById("abPill"),
+  abLabel: document.getElementById("abLabel"),
   routingEmpty: document.getElementById("routingEmpty"),
   routingTable: document.getElementById("routingTable"),
   routingBody: document.getElementById("routingBody"),
@@ -52,13 +66,24 @@ const els = {
   routingSearchCount: document.getElementById("routingSearchCount"),
   elApiKey: document.getElementById("elApiKey"),
   elPill: document.getElementById("elPill"),
+  elLabel: document.getElementById("elLabel"),
 };
 
 els.baseUrl.value = CONFIG.baseUrl;
 els.token.value = CONFIG.token;
+bindStoredSecret(els.token, document.getElementById("rememberToken"), BEARER_TOKEN_STORAGE);
+bindStoredSecret(els.elApiKey, document.getElementById("rememberElKey"), EL_KEY_STORAGE);
 updateHeaderPills();
-els.baseUrl.addEventListener("input", updateHeaderPills);
-els.token.addEventListener("input", updateHeaderPills);
+function markServersStale() {
+  resetServerHealth();
+  showStaleServerStatus(els);
+}
+
+els.baseUrl.addEventListener("input", markServersStale);
+els.token.addEventListener("input", () => {
+  updateHeaderPills();
+  markServersStale();
+});
 els.elApiKey.addEventListener("input", updateHeaderPills);
 
 function readAuth() {
@@ -69,35 +94,19 @@ function readAuth() {
 }
 
 function updateHeaderPills() {
-  const base = els.baseUrl.value.trim();
-
-  if (!base) {
-    els.connLabel.textContent = "no base URL";
-    els.connPill.classList.remove("live");
-  } else {
-    try {
-      const u = new URL(base);
-      els.connLabel.textContent = u.host + u.pathname.replace(/\/$/, "");
-      els.connPill.classList.add("live");
-    } catch {
-      els.connLabel.textContent = "invalid base URL";
-      els.connPill.classList.remove("live");
-    }
-  }
-
   if (els.token.value.trim()) {
-    els.authPill.textContent = "Bearer · configured";
+    els.authLabel.textContent = "configured";
     els.authPill.classList.add("live");
   } else {
-    els.authPill.textContent = "Bearer · missing";
+    els.authLabel.textContent = "missing";
     els.authPill.classList.remove("live");
   }
 
   if (els.elApiKey.value.trim()) {
-    els.elPill.textContent = "ElevenLabs · configured";
+    els.elLabel.textContent = "configured";
     els.elPill.classList.add("live");
   } else {
-    els.elPill.textContent = "ElevenLabs · missing";
+    els.elLabel.textContent = "missing";
     els.elPill.classList.remove("live");
   }
 }
@@ -144,11 +153,25 @@ function selectedProvider() {
   return checked ? checked.value : "elevenlabs";
 }
 
+function selectedArmTarget() {
+  const checked = document.querySelector('input[name="arm"]:checked');
+
+  return checked ? checked.value : "control";
+}
+
+function setConfirm({ title, text, okLabel }) {
+  els.confirmTitle.textContent = title;
+  els.confirmText.textContent = text;
+  els.confirmOk.textContent = okLabel;
+}
+
 function setBusy(on) {
   els.busy.classList.toggle("show", on);
   els.btnStatus.disabled = on;
   els.btnImport.disabled = on;
   els.btnSwitch.disabled = on;
+  els.btnArmPreview.disabled = on;
+  els.btnArmApply.disabled = on;
   setRoutingControlsDisabled(els, on);
 }
 
@@ -195,8 +218,32 @@ function showBanner(type, message) {
   toast.append(icon, body, close, progress);
   els.toasts.append(toast);
 
-  const timerId = window.setTimeout(() => dismissToast(toast), TOAST_MS[kind]);
-  toast.dataset.timerId = String(timerId);
+  // The timer and the progress bar both pause while the toast is hovered or focused.
+  let remaining = TOAST_MS[kind];
+  let startedAt = 0;
+  let paused = true;
+
+  const resume = () => {
+    if (!paused) return;
+
+    paused = false;
+    startedAt = Date.now();
+    toast.dataset.timerId = String(window.setTimeout(() => dismissToast(toast), remaining));
+  };
+
+  const pause = () => {
+    if (paused) return;
+
+    paused = true;
+    window.clearTimeout(Number(toast.dataset.timerId || 0));
+    remaining = Math.max(remaining - (Date.now() - startedAt), 0);
+  };
+
+  toast.addEventListener("mouseenter", pause);
+  toast.addEventListener("mouseleave", resume);
+  toast.addEventListener("focusin", pause);
+  toast.addEventListener("focusout", resume);
+  resume();
 }
 
 function clearBanner() {
@@ -247,6 +294,60 @@ async function runRowSwitch(clientId, provider) {
   );
 }
 
+/**
+ * Moves clients to an A/B arm. Kept apart from withUi: assign-arm rows carry no webhook fields,
+ * so they must not go into the provider routing cache.
+ */
+async function runArm(clientIds, target, { dryRun, summary = false }) {
+  clearBanner();
+
+  if (target === "ab") {
+    const { ab } = await refreshServerStatus(els, readAuth());
+
+    if (ab.state === "down") {
+      throw new Error(`Router AB server is down (${ab.detail}). Moving clients to Router AB is off until it is back; moving to Router is still allowed.`);
+    }
+  }
+
+  const resolved = resolveArm(clientIds, target);
+  if (resolved.error) throw new Error(resolved.error);
+
+  const data = await assignArm(readAuth(), clientIds, resolved.arm, dryRun);
+  const results = Array.isArray(data?.results) ? data.results : [];
+
+  if (summary) {
+    renderResults(els, {
+      action: dryRun ? "assign_arm (preview)" : "assign_arm",
+      provider: resolved.arm,
+      results,
+    });
+  }
+
+  const errors = results.filter((row) => String(row.status).toLowerCase() === "error");
+
+  if (errors.length) {
+    const first = errors[0];
+    showBanner("error", `${errors.length} of ${results.length} failed — client ${first.client_id}: ${first.reason || "error"}`);
+  } else if (dryRun) {
+    const changes = results.filter((row) => row.status === "would_update").length;
+    showBanner("info", `Preview for ${armLabel(target)} (${resolved.arm}): ${changes} would change, ${results.length - changes} unchanged.`);
+  } else {
+    showBanner("ok", `Moved ${results.length} client(s) to ${armLabel(target)} (${resolved.arm}).`);
+  }
+
+  if (!dryRun) {
+    const elError = await refreshElAgents(els, els.elApiKey.value.trim());
+    if (elError) showBanner("info", `Moved, but the ElevenLabs data was not refreshed: ${elError}`);
+  }
+}
+
+function runArmUi(clientIds, target, options) {
+  setBusy(true);
+  runArm(clientIds, target, options)
+    .catch((err) => showBanner("error", err.message || String(err)))
+    .finally(() => setBusy(false));
+}
+
 async function withUi(fn) {
   setBusy(true);
   try {
@@ -274,7 +375,11 @@ els.btnImport.addEventListener("click", () => withUi(runImport));
 els.btnRefreshRouting.addEventListener("click", async () => {
   setBusy(true);
   try {
-    await refreshRouting(els, readAuth(), twilioOverride(), { clearBanner, showBanner });
+    await refreshRouting(els, readAuth(), twilioOverride(), {
+      clearBanner,
+      showBanner,
+      elApiKey: els.elApiKey.value.trim(),
+    });
   } catch (err) {
     showBanner("error", err.message || String(err));
     stopRoutingRefresh(els);
@@ -291,8 +396,11 @@ els.btnSwitch.addEventListener("click", () => {
     if (!ids.length) throw new Error("Enter at least one client ID");
     twilioOverride();
     const provider = selectedProvider();
-    els.confirmText.textContent =
-      `Switch ${ids.length} client(s) to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`;
+    setConfirm({
+      title: "Switch live provider?",
+      text: `Switch ${ids.length} client(s) to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`,
+      okLabel: "Switch now",
+    });
     pendingSwitch = { type: "batch" };
     els.confirmDialog.showModal();
   } catch (err) {
@@ -300,7 +408,66 @@ els.btnSwitch.addEventListener("click", () => {
   }
 });
 
+els.btnArmPreview.addEventListener("click", () => {
+  try {
+    const ids = parseClientIds();
+    if (!ids.length) throw new Error("Enter at least one client ID");
+    runArmUi(ids, selectedArmTarget(), { dryRun: true, summary: true });
+  } catch (err) {
+    showBanner("error", err.message || String(err));
+  }
+});
+
+els.btnArmApply.addEventListener("click", () => {
+  try {
+    const ids = parseClientIds();
+    if (!ids.length) throw new Error("Enter at least one client ID");
+    const target = selectedArmTarget();
+    if (target === "ab" && getAbHealth().state === "down") {
+      throw new Error("Router AB server is down. Moving clients to Router AB is off; choose Router instead.");
+    }
+
+    const resolved = resolveArm(ids, target);
+    if (resolved.error) throw new Error(resolved.error);
+
+    setConfirm({
+      title: "Move to arm?",
+      text: `Move ${ids.length} client(s) to ${armLabel(target)} (${resolved.arm}). This changes the agent and environment on their live ElevenLabs numbers.`,
+      okLabel: "Move now",
+    });
+    pendingSwitch = { type: "arm", clientIds: ids, target, summary: true };
+    els.confirmDialog.showModal();
+  } catch (err) {
+    showBanner("error", err.message || String(err));
+  }
+});
+
 els.routingBody.addEventListener("click", (event) => {
+  const armBtn = event.target.closest("[data-arm-client]");
+  if (armBtn) {
+    if (armBtn.disabled || armBtn.classList.contains("is-current")) return;
+
+    const clientId = Number(armBtn.getAttribute("data-arm-client"));
+    const target = armBtn.getAttribute("data-arm-target");
+    const resolved = resolveArm([clientId], target);
+
+    if (resolved.error) {
+      showBanner("error", resolved.error);
+
+      return;
+    }
+
+    setConfirm({
+      title: "Move to arm?",
+      text: `Move client ${clientId} to ${armLabel(target)} (${resolved.arm}). This changes the agent and environment on its live ElevenLabs number.`,
+      okLabel: "Move now",
+    });
+    pendingSwitch = { type: "arm", clientIds: [clientId], target, summary: false };
+    els.confirmDialog.showModal();
+
+    return;
+  }
+
   const importBtn = event.target.closest("[data-import-client]");
   if (importBtn) {
     if (importBtn.disabled) return;
@@ -339,29 +506,6 @@ els.routingBody.addEventListener("click", (event) => {
     return;
   }
 
-  const refreshBtn = event.target.closest("[data-refresh-client]");
-  if (refreshBtn) {
-    if (refreshBtn.disabled) return;
-
-    const clientId = Number(refreshBtn.getAttribute("data-refresh-client"));
-
-    (async () => {
-      setBusy(true);
-      try {
-        await refreshOneClient(els, readAuth(), twilioOverride(), clientId, {
-          clearBanner,
-          showBanner,
-        });
-      } catch (err) {
-        showBanner("error", err.message || String(err));
-      } finally {
-        setBusy(false);
-      }
-    })();
-
-    return;
-  }
-
   const button = event.target.closest("[data-switch-client]");
   if (!button || button.disabled) return;
   if (button.classList.contains("is-current")) return;
@@ -380,8 +524,11 @@ els.routingBody.addEventListener("click", (event) => {
     return;
   }
 
-  els.confirmText.textContent =
-    `Switch client ${clientId} from "${currentLabel}" to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`;
+  setConfirm({
+    title: "Switch live provider?",
+    text: `Switch client ${clientId} from "${currentLabel}" to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`,
+    okLabel: "Switch now",
+  });
   pendingSwitch = { type: "row", clientId, provider };
   els.confirmDialog.showModal();
 });
@@ -396,6 +543,12 @@ els.confirmOk.addEventListener("click", () => {
   const pending = pendingSwitch;
   pendingSwitch = null;
   if (!pending) return;
+
+  if (pending.type === "arm") {
+    runArmUi(pending.clientIds, pending.target, { dryRun: false, summary: pending.summary });
+
+    return;
+  }
 
   if (pending.type === "row") {
     withUi(() => runRowSwitch(pending.clientId, pending.provider));
@@ -443,3 +596,4 @@ els.routingSearch.addEventListener("keydown", (event) => {
 initElevenlabs({ showBanner });
 updateHeaderPills();
 renderRoutingTable(els);
+refreshServerStatus(els, readAuth());
