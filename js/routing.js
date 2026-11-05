@@ -742,6 +742,10 @@ export function renderRoutingTable(els) {
     const elCurrent = primary === "elevenlabs" ? " is-current" : "";
     const vapiCurrent = primary === "vapi" ? " is-current" : "";
     const phone = row.phone_number || "—";
+    // Labels look like "production | Name": show only the name after the first pipe.
+    const elLabel = elEntryFor(row.phone_number, elAgents)?.label || "";
+    const elName = elLabel.includes("|") ? elLabel.slice(elLabel.indexOf("|") + 1).trim() : elLabel.trim();
+    const nameTitle = elName ? ` title="${escapeHtml(elName)}"` : "";
     const noteEmpty = !row.rate_limited && !row.error && !reason;
     let noteMarkup = `<span class="note-alert">${escapeHtml(note)}</span>`;
 
@@ -755,8 +759,8 @@ export function renderRoutingTable(els) {
 
     return `
           <tr data-client-id="${escapeHtml(clientId)}">
-            <td class="mono">${escapeHtml(clientId)}</td>
-            <td class="mono">${escapeHtml(phone)}</td>
+            <td class="mono"${nameTitle}>${escapeHtml(clientId)}</td>
+            <td class="mono"${nameTitle}>${escapeHtml(phone)}</td>
             <td class="switch-cell">
               <div class="row-switch" role="group" aria-label="Switch provider for ${escapeHtml(clientId)}" title="${escapeHtml(switchTitle)}">
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="elevenlabs" class="${elCurrent.trim()}">ElevenLabs</button>
