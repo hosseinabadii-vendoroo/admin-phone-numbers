@@ -1004,6 +1004,17 @@ td.note-cell {
   color: var(--text-muted);
 }
 
+.company-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+td.cell-phone {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 .note-alert {
   color: var(--danger);
 }

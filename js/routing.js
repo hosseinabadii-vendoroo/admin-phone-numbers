@@ -745,11 +745,12 @@ export function renderRoutingTable(els) {
     // Labels look like "production | Name": show only the name after the first pipe.
     const elLabel = elEntryFor(row.phone_number, elAgents)?.label || "";
     const elName = elLabel.includes("|") ? elLabel.slice(elLabel.indexOf("|") + 1).trim() : elLabel.trim();
-    const nameTitle = elName ? ` title="${escapeHtml(elName)}"` : "";
     const noteEmpty = !row.rate_limited && !row.error && !reason;
     let noteMarkup = `<span class="note-alert">${escapeHtml(note)}</span>`;
 
-    if (noteEmpty && row.elevenlabs_imported === true) {
+    if (noteEmpty && elName) {
+      noteMarkup = `<span class="company-name">${escapeHtml(elName)}</span>`;
+    } else if (noteEmpty && row.elevenlabs_imported === true) {
       noteMarkup = escapeHtml("Imported to elevenlabs");
     } else if (noteEmpty && row.elevenlabs_imported === false) {
       noteMarkup = `<button type="button" class="btn-ghost btn-row-refresh btn-import-el" data-import-client="${escapeHtml(clientId)}">Import to elevenlabs</button>`;
@@ -759,8 +760,9 @@ export function renderRoutingTable(els) {
 
     return `
           <tr data-client-id="${escapeHtml(clientId)}">
-            <td class="mono"${nameTitle}>${escapeHtml(clientId)}</td>
-            <td class="mono"${nameTitle}>${escapeHtml(phone)}</td>
+            <td class="mono">${escapeHtml(clientId)}</td>
+            <td class="note-cell">${noteMarkup}</td>
+            <td class="mono cell-phone">${escapeHtml(phone)}</td>
             <td class="switch-cell">
               <div class="row-switch" role="group" aria-label="Switch provider for ${escapeHtml(clientId)}" title="${escapeHtml(switchTitle)}">
                 <button type="button" data-switch-client="${escapeHtml(clientId)}" data-switch-provider="elevenlabs" class="${elCurrent.trim()}">ElevenLabs</button>
@@ -770,7 +772,6 @@ export function renderRoutingTable(els) {
             <td class="switch-cell">${elArmCell(clientId, row.phone_number, elAgents)}</td>
             <td class="cell-middle">${providerBadge(primarySms, row.primary_sms_url)}</td>
             <td class="cell-middle">${providerBadge(fallbackSms, row.fallback_sms_url)}</td>
-            <td class="note-cell">${noteMarkup}</td>
           </tr>
         `;
   }).join("");
