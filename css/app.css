@@ -362,6 +362,18 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
   border: 1px solid rgba(96, 165, 250, 0.35);
 }
 
+.btn-accent-soft {
+  background: rgba(45, 212, 191, 0.08);
+  color: #99f6e4;
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  font-weight: 500;
+}
+
+.btn-accent-soft:hover:not(:disabled) {
+  background: rgba(45, 212, 191, 0.16);
+  border-color: rgba(45, 212, 191, 0.45);
+}
+
 .btn-warn {
   background: var(--warn-dim);
   color: #fde68a;
@@ -912,6 +924,14 @@ dialog .dlg-actions {
 
 .routing-search-inline input { width: 100%; }
 
+.card-hd input[type="search"],
+.card-hd #btnRefreshRouting {
+  height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.85rem;
+}
+
 .routing-search-count {
   color: var(--text-faint);
   font-size: 0.78rem;
@@ -1416,8 +1436,9 @@ tbody tr.dirty td {
 
 .auth-bar .auth-row input[type="text"],
 .auth-bar .auth-row input[type="password"] {
-  padding: 8px 12px;
-  font-size: 0.88rem;
+  padding: 0 12px;
+  height: 38px;
+  font-size: 0.85rem;
 }
 
 .auth-side .hint { margin-top: 0; }
