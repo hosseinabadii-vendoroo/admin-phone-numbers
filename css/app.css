@@ -444,6 +444,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .stat.skip { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); background: var(--warn-dim); }
 .stat.info { color: var(--info); border-color: rgba(96, 165, 250, 0.35); background: var(--info-dim); }
 
+.routing-meta .stat { color: var(--text-faint); }
+.routing-meta .stat b { color: var(--text); font-weight: 500; }
+.routing-meta .stat.err { color: var(--danger); }
+.routing-meta .stat.err b { color: inherit; }
+
 .toasts {
   position: fixed;
   top: 18px;
@@ -878,6 +883,21 @@ dialog .dlg-actions {
   justify-content: flex-end;
 }
 
+.label-row-split {
+  justify-content: space-between;
+}
+
+.label-row-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.label-row-split .routing-meta {
+  justify-content: flex-start;
+}
+
 .routing-source {
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
@@ -898,6 +918,14 @@ dialog .dlg-actions {
 }
 
 .routing-search input { max-width: 420px; }
+
+.routing-search-inline {
+  flex: 1;
+  padding: 0;
+  border-bottom: none;
+}
+
+.routing-search-inline input { width: 100%; }
 
 .routing-search-count {
   color: var(--text-faint);
@@ -1008,10 +1036,10 @@ td.note-cell {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
+  white-space: nowrap;
 }
 
 td.cell-phone {
-  font-size: 0.9rem;
   color: var(--text-muted);
 }
 

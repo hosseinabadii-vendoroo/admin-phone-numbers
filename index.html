@@ -20,10 +20,13 @@
     <section class="card auth-bar">
       <div class="card-bd">
         <div class="field">
-          <div class="label-row">
-            <label for="baseUrl">Base URL</label>
-            <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel"></span></div>
-            <div class="pill" id="abPill"><span class="dot"></span><span id="abLabel"></span></div>
+          <div class="label-row label-row-split">
+            <div class="label-row-group">
+              <label for="baseUrl">Base URL</label>
+              <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel"></span></div>
+              <div class="pill" id="abPill"><span class="dot"></span><span id="abLabel"></span></div>
+            </div>
+            <span class="routing-meta" id="routingMeta"></span>
           </div>
           <input id="baseUrl" type="text" spellcheck="false" />
           <div class="hint">Includes PATH_PREFIX. Example: http://localhost:8000/vendoroo-voice-agent</div>
@@ -69,22 +72,17 @@
     <div class="tab-panel" id="panelProvider" role="tabpanel" aria-labelledby="tabProvider">
       <section class="card routing">
         <div class="card-hd">
-          <div>
-            <h2>Phone provider status</h2>
-            <span>Primary vs fallback voice + SMS · ElevenLabs / Vapi · one status GET for the fleet</span>
+          <div class="routing-search routing-search-inline">
+            <input id="routingSearch" type="search" spellcheck="false" autocomplete="off" placeholder="Search by client ID, company name or phone number" aria-label="Search by client ID, company name or phone number" />
+            <span class="routing-search-count" id="routingSearchCount" aria-live="polite"></span>
           </div>
           <div class="hd-actions">
-            <span class="routing-meta" id="routingMeta"></span>
             <div class="busy" id="routingBusy"><span class="spinner"></span><span id="routingBusyLabel">Refreshing…</span></div>
             <button class="btn-info" id="btnRefreshRouting" type="button">Refresh all</button>
           </div>
         </div>
         <div class="routing-source" id="routingSource" role="status" hidden></div>
         <div class="routing-source" id="abStatus" role="status" hidden></div>
-        <div class="routing-search">
-          <input id="routingSearch" type="search" spellcheck="false" autocomplete="off" placeholder="Search by client ID or phone number" aria-label="Search by client ID or phone number" />
-          <span class="routing-search-count" id="routingSearchCount" aria-live="polite"></span>
-        </div>
         <div class="table-wrap" id="routingPanel">
           <div class="empty" id="routingEmpty">No clients to show. Click Refresh all to load clients from Marketplace.</div>
           <table id="routingTable" hidden>

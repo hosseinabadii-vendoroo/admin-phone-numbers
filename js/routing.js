@@ -191,17 +191,35 @@ function abWarning() {
 
 const PILL_LABELS = { up: "up", down: "off", checking: "checking…", idle: "not checked" };
 
-function renderServerPill(pill, label, name, health) {
+function renderServerPill(pill, label, name, health, count) {
   if (!pill) return;
 
   pill.classList.toggle("live", health.state === "up");
   pill.title = health.detail || "";
-  label.textContent = `${name}: ${PILL_LABELS[health.state] || PILL_LABELS.idle}`;
+  const suffix = count === null ? "" : ` · ${count} ${count === 1 ? "client" : "clients"}`;
+  label.textContent = `${name}: ${PILL_LABELS[health.state] || PILL_LABELS.idle}${suffix}`;
+}
+
+/** How many clients' ElevenLabs numbers sit on each arm, or null before the workspace has loaded. */
+function armCounts() {
+  const elAgents = loadElAgents();
+  if (!elAgents) return { router: null, router_ab: null };
+
+  const cache = loadRoutingCache();
+  const counts = { router: 0, router_ab: 0 };
+
+  for (const id of uniqueClientIds()) {
+    const arm = armOf(elEntryFor(routingEntryFor(id, cache).phone_number, elAgents));
+    if (arm) counts[arm] += 1;
+  }
+
+  return counts;
 }
 
 function renderServerPills(els) {
-  renderServerPill(els.connPill, els.connLabel, "Router", getRouterHealth());
-  renderServerPill(els.abPill, els.abLabel, "Router AB", getAbHealth());
+  const counts = armCounts();
+  renderServerPill(els.connPill, els.connLabel, "Router", getRouterHealth(), counts.router);
+  renderServerPill(els.abPill, els.abLabel, "Router AB", getAbHealth(), counts.router_ab);
 }
 
 function renderAbStatus(els) {
@@ -599,15 +617,16 @@ function updateRoutingMeta(els, cache, extra = "") {
     else unknown += 1;
   }
 
+  const stat = (count, label, kind = "") => `<span class="stat ${kind}"><b>${count}</b> ${label}</span>`;
   const chips = [
-    `<span class="stat">${ids.length} clients</span>`,
-    `<span class="stat ok">${eleven} elevenlabs</span>`,
-    `<span class="stat info">${vapi} vapi</span>`,
-    `<span class="stat skip">${unknown} unknown</span>`,
-    `<span class="stat">${fetched} cached</span>`,
+    stat(ids.length, "clients"),
+    stat(eleven, "elevenlabs"),
+    stat(vapi, "vapi"),
+    stat(unknown, "unknown"),
+    stat(fetched, "cached"),
   ];
 
-  if (limited) chips.push(`<span class="stat err">${limited} rate-limited</span>`);
+  if (limited) chips.push(stat(limited, "rate-limited", "err"));
   if (extra) chips.push(`<span class="stat">${escapeHtml(extra)}</span>`);
   els.routingMeta.innerHTML = chips.join("");
 }
@@ -683,7 +702,14 @@ function matchesPhone(phone, query) {
  * A plain number shorter than a phone number is read as a client ID and must match exactly.
  * Formatted or longer input, or a short number no client has as its ID, searches phone numbers.
  */
-function filterClientIds(ids, cache, query) {
+/** Labels look like "production | Name": the company name is what follows the first pipe. */
+function companyNameFor(phone, elAgents) {
+  const label = elEntryFor(phone, elAgents)?.label || "";
+
+  return label.includes("|") ? label.slice(label.indexOf("|") + 1).trim() : label.trim();
+}
+
+function filterClientIds(ids, cache, query, elAgents) {
   if (!query) return ids;
 
   if (isClientIdQuery(query)) {
@@ -691,7 +717,13 @@ function filterClientIds(ids, cache, query) {
     if (exact.length) return exact;
   }
 
-  return ids.filter((id) => matchesPhone(routingEntryFor(id, cache).phone_number, query));
+  const needle = query.toLowerCase();
+
+  return ids.filter((id) => {
+    const phone = routingEntryFor(id, cache).phone_number;
+
+    return matchesPhone(phone, query) || companyNameFor(phone, elAgents).toLowerCase().includes(needle);
+  });
 }
 
 export function renderRoutingTable(els) {
@@ -713,7 +745,7 @@ export function renderRoutingTable(els) {
   }
 
   const query = els.routingSearch.value.trim();
-  const visibleIds = filterClientIds(sortedClientIds(ids, cache, elAgents), cache, query);
+  const visibleIds = filterClientIds(sortedClientIds(ids, cache, elAgents), cache, query, elAgents);
   els.routingSearchCount.textContent = query ? `${visibleIds.length} of ${ids.length} clients` : "";
 
   if (!visibleIds.length) {
@@ -742,9 +774,7 @@ export function renderRoutingTable(els) {
     const elCurrent = primary === "elevenlabs" ? " is-current" : "";
     const vapiCurrent = primary === "vapi" ? " is-current" : "";
     const phone = row.phone_number || "—";
-    // Labels look like "production | Name": show only the name after the first pipe.
-    const elLabel = elEntryFor(row.phone_number, elAgents)?.label || "";
-    const elName = elLabel.includes("|") ? elLabel.slice(elLabel.indexOf("|") + 1).trim() : elLabel.trim();
+    const elName = companyNameFor(row.phone_number, elAgents);
     const noteEmpty = !row.rate_limited && !row.error && !reason;
     let noteMarkup = `<span class="note-alert">${escapeHtml(note)}</span>`;
 
