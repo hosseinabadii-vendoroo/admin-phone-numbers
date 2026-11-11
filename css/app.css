@@ -1032,7 +1032,7 @@ dialog .dlg-actions {
 }
 
 td.note-cell {
-  max-width: 220px;
+  max-width: 260px;
   font-size: 0.75rem;
   color: var(--text-muted);
 }
@@ -1041,7 +1041,7 @@ td.note-cell {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 td.cell-phone {
