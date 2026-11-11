@@ -39,8 +39,6 @@ const els = {
   rawJson: document.getElementById("rawJson"),
   connLabel: document.getElementById("connLabel"),
   connPill: document.getElementById("connPill"),
-  authPill: document.getElementById("authPill"),
-  authLabel: document.getElementById("authLabel"),
   confirmDialog: document.getElementById("confirmDialog"),
   confirmTitle: document.getElementById("confirmTitle"),
   confirmText: document.getElementById("confirmText"),
@@ -65,50 +63,25 @@ const els = {
   routingSearch: document.getElementById("routingSearch"),
   routingSearchCount: document.getElementById("routingSearchCount"),
   elApiKey: document.getElementById("elApiKey"),
-  elPill: document.getElementById("elPill"),
-  elLabel: document.getElementById("elLabel"),
 };
 
 els.baseUrl.value = CONFIG.baseUrl;
 els.token.value = CONFIG.token;
 bindStoredSecret(els.token, document.getElementById("rememberToken"), BEARER_TOKEN_STORAGE);
 bindStoredSecret(els.elApiKey, document.getElementById("rememberElKey"), EL_KEY_STORAGE);
-updateHeaderPills();
 function markServersStale() {
   resetServerHealth();
   showStaleServerStatus(els);
 }
 
 els.baseUrl.addEventListener("input", markServersStale);
-els.token.addEventListener("input", () => {
-  updateHeaderPills();
-  markServersStale();
-});
-els.elApiKey.addEventListener("input", updateHeaderPills);
+els.token.addEventListener("input", markServersStale);
 
 function readAuth() {
   return {
     baseUrl: els.baseUrl.value,
     token: els.token.value,
   };
-}
-
-function updateHeaderPills() {
-  if (els.token.value.trim()) {
-    els.authLabel.textContent = "configured";
-    els.authPill.classList.add("live");
-  } else {
-    els.authLabel.textContent = "missing";
-    els.authPill.classList.remove("live");
-  }
-
-  if (els.elApiKey.value.trim()) {
-    els.elLabel.textContent = "configured";
-    els.elPill.classList.add("live");
-  } else {
-    els.elLabel.textContent = "missing";
-    els.elPill.classList.remove("live");
-  }
 }
 
 function parseClientIds() {
@@ -594,6 +567,5 @@ els.routingSearch.addEventListener("keydown", (event) => {
 });
 
 initElevenlabs({ showBanner });
-updateHeaderPills();
 renderRoutingTable(els);
 refreshServerStatus(els, readAuth());

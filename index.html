@@ -19,45 +19,47 @@
 
     <section class="card auth-bar">
       <div class="card-bd">
-        <div class="field">
-          <div class="label-row label-row-split">
-            <div class="label-row-group">
-              <label for="baseUrl">Base URL</label>
-              <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel"></span></div>
-              <div class="pill" id="abPill"><span class="dot"></span><span id="abLabel"></span></div>
-            </div>
-            <span class="routing-meta" id="routingMeta"></span>
+        <div class="auth-summary">
+          <span class="routing-meta" id="routingMeta"></span>
+          <div class="auth-servers">
+            <div class="pill" id="connPill"><span class="dot"></span><span id="connLabel"></span></div>
+            <div class="pill" id="abPill"><span class="dot"></span><span id="abLabel"></span></div>
+          </div>
+        </div>
+        <div class="auth-row">
+          <div class="auth-label">
+            <label for="baseUrl">Base URL</label>
           </div>
           <input id="baseUrl" type="text" spellcheck="false" />
-          <div class="hint">Includes PATH_PREFIX. Example: http://localhost:8000/vendoroo-voice-agent</div>
+          <div class="auth-side">
+            <div class="hint">Includes PATH_PREFIX.</div>
+          </div>
         </div>
-        <div class="row-2">
-          <div class="field">
-            <div class="label-row">
-              <label for="token">Bearer token</label>
-              <div class="pill" id="authPill"><span class="dot"></span><span id="authLabel">missing</span></div>
-            </div>
-            <div class="input-with-prefix">
-              <span class="prefix">Bearer</span>
-              <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="paste token only" />
-            </div>
+        <div class="auth-row">
+          <div class="auth-label">
+            <label for="token">Bearer token</label>
+          </div>
+          <div class="input-with-prefix">
+            <span class="prefix">Bearer</span>
+            <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="paste token only" />
+          </div>
+          <div class="auth-side">
             <label class="check-inline" for="rememberToken">
               <input id="rememberToken" type="checkbox" checked />
               Remember this token on this device
             </label>
-            <div class="hint">Paste the raw token only — the prefix is added automatically.</div>
           </div>
-          <div class="field">
-            <div class="label-row">
-              <label for="elApiKey">ElevenLabs API key</label>
-              <div class="pill" id="elPill"><span class="dot"></span><span id="elLabel">missing</span></div>
-            </div>
-            <input id="elApiKey" type="password" spellcheck="false" autocomplete="off" placeholder="xi-..." />
+        </div>
+        <div class="auth-row">
+          <div class="auth-label">
+            <label for="elApiKey">ElevenLabs API key</label>
+          </div>
+          <input id="elApiKey" type="password" spellcheck="false" autocomplete="off" placeholder="xi-..." />
+          <div class="auth-side">
             <label class="check-inline" for="rememberElKey">
               <input id="rememberElKey" type="checkbox" checked />
               Remember this key on this device
             </label>
-            <div class="hint">Used for the ElevenLabs agent column and the ElevenLabs workspace tab.</div>
           </div>
         </div>
       </div>

@@ -883,21 +883,6 @@ dialog .dlg-actions {
   justify-content: flex-end;
 }
 
-.label-row-split {
-  justify-content: space-between;
-}
-
-.label-row-group {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.label-row-split .routing-meta {
-  justify-content: flex-start;
-}
-
 .routing-source {
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
@@ -1381,6 +1366,64 @@ tbody tr.dirty td {
 
 .empty.error { color: var(--danger); }
 
-.auth-bar .field + .row-2 {
-  margin-top: 12px;
+.auth-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding-bottom: 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Stats and server status read as quiet text, not boxed badges. */
+.auth-summary .routing-meta,
+.auth-servers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+}
+
+.auth-summary .routing-meta { justify-content: flex-start; }
+
+.auth-summary .stat,
+.auth-summary .pill {
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  font-size: 0.8rem;
+}
+
+.auth-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 520px) auto;
+  gap: 8px 20px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.auth-row:first-of-type { margin-top: 10px; }
+
+.auth-label label {
+  margin-bottom: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.auth-bar .auth-row input[type="text"],
+.auth-bar .auth-row input[type="password"] {
+  padding: 8px 12px;
+  font-size: 0.88rem;
+}
+
+.auth-side .hint { margin-top: 0; }
+
+.auth-side .check-inline { margin: 0; }
+
+@media (max-width: 960px) {
+  .auth-row { grid-template-columns: 1fr; gap: 6px; }
 }
