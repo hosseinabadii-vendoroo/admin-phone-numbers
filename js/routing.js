@@ -1,4 +1,4 @@
-import { CACHE_KEY, CLIENT_LIST_KEY, EL_AGENTS_KEY } from "./config.js";
+import { CACHE_KEY, CLIENT_LIST_KEY, EL_AGENTS_KEY, HIGH_RISK_CLIENT_IDS } from "./config.js";
 import { fetchPhoneNumberStatus, getRooceptionistClientIds, httpErrorMessage } from "./api.js";
 import { listPhoneNumbers } from "./elevenlabs-api.js";
 import { getAbHealth, getRouterHealth, refreshAbHealth, refreshRouterHealth } from "./server-health.js";
@@ -788,9 +788,14 @@ export function renderRoutingTable(els) {
       noteMarkup = escapeHtml("—");
     }
 
+    const highRisk = HIGH_RISK_CLIENT_IDS.has(String(clientId));
+    const idMarkup = highRisk
+      ? `<span class="risk-id" title="Very high risk client">${escapeHtml(clientId)}</span>`
+      : escapeHtml(clientId);
+
     return `
-          <tr data-client-id="${escapeHtml(clientId)}">
-            <td class="mono">${escapeHtml(clientId)}</td>
+          <tr data-client-id="${escapeHtml(clientId)}"${highRisk ? ' class="high-risk"' : ""}>
+            <td class="mono">${idMarkup}</td>
             <td class="note-cell">${noteMarkup}</td>
             <td class="mono cell-phone">${escapeHtml(phone)}</td>
             <td class="switch-cell">

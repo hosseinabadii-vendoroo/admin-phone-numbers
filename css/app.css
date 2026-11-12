@@ -1448,3 +1448,17 @@ tbody tr.dirty td {
 @media (max-width: 960px) {
   .auth-row { grid-template-columns: 1fr; gap: 6px; }
 }
+
+tbody tr.high-risk td {
+  background: rgba(248, 113, 113, 0.06);
+}
+
+tbody tr.high-risk td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.risk-id {
+  color: var(--danger);
+  font-weight: 600;
+  white-space: nowrap;
+}

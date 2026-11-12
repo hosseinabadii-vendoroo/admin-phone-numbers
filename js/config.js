@@ -11,3 +11,9 @@ export const ELEVENLABS_API = "https://api.elevenlabs.io/v1";
 export const EL_KEY_STORAGE = "phone-admin:el-api-key";
 export const EL_TWILIO_SID_KEY = "phone-admin:el-twilio-sid";
 export const BEARER_TOKEN_STORAGE = "phone-admin:bearer-token";
+
+/** Clients flagged as very high risk; the routing table marks them. */
+export const HIGH_RISK_CLIENT_IDS = new Set([
+  764, 440, 927, 882, 971, 1004, 556, 581, 438, 798, 580, 835, 553, 765, 723, 543,
+  950, 711, 762, 802, 1024, 883, 573, 928, 502, 572, 494, 770, 495, 672, 403,
+].map(String));
