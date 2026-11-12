@@ -618,12 +618,14 @@ function updateRoutingMeta(els, cache, extra = "") {
   }
 
   const stat = (count, label, kind = "") => `<span class="stat ${kind}"><b>${count}</b> ${label}</span>`;
+  const highRisk = ids.filter((id) => HIGH_RISK_CLIENT_IDS.has(String(id))).length;
   const chips = [
     stat(ids.length, "clients"),
     stat(eleven, "elevenlabs"),
     stat(vapi, "vapi"),
     stat(unknown, "unknown"),
     stat(fetched, "cached"),
+    stat(highRisk, "high risk", highRisk ? "err" : ""),
   ];
 
   if (limited) chips.push(stat(limited, "rate-limited", "err"));
