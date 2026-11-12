@@ -1,4 +1,4 @@
-import { CACHE_KEY, CLIENT_LIST_KEY, EL_AGENTS_KEY, HIGH_RISK_CLIENT_IDS } from "./config.js";
+import { BULK_MAX_CLIENTS, CACHE_KEY, CLIENT_LIST_KEY, EL_AGENTS_KEY, HIGH_RISK_CLIENT_IDS } from "./config.js";
 import { fetchPhoneNumberStatus, getRooceptionistClientIds, httpErrorMessage } from "./api.js";
 import { listPhoneNumbers } from "./elevenlabs-api.js";
 import { getAbHealth, getRouterHealth, refreshAbHealth, refreshRouterHealth } from "./server-health.js";
@@ -7,6 +7,93 @@ import { escapeHtml } from "./results.js";
 let routingRefreshActive = false;
 let sortKey = "client";
 let sortDir = "asc";
+
+/** Client ids ticked for a bulk action; survives re-renders (search, sort, refresh). */
+const selectedIds = new Set();
+let lastVisibleIds = [];
+
+export function getSelectedClientIds() {
+  return [...selectedIds].map(Number);
+}
+
+export function clearSelection() {
+  selectedIds.clear();
+}
+
+/** Ticks or unticks one row. Returns false when the selection limit blocked it. */
+export function toggleSelected(clientId, on) {
+  const key = String(clientId);
+
+  if (!on) {
+    selectedIds.delete(key);
+
+    return true;
+  }
+
+  if (!selectedIds.has(key) && selectedIds.size >= BULK_MAX_CLIENTS) return false;
+  selectedIds.add(key);
+
+  return true;
+}
+
+function applyToIds(ids, on) {
+  let capped = false;
+
+  for (const id of ids) {
+    if (!on) {
+      selectedIds.delete(id);
+    } else if (!selectedIds.has(id)) {
+      if (selectedIds.size >= BULK_MAX_CLIENTS) {
+        capped = true;
+        continue;
+      }
+
+      selectedIds.add(id);
+    }
+  }
+
+  return capped;
+}
+
+/** Ticks or unticks a run of rows (shift-click) in the order on screen. Returns true if the limit cut it short. */
+export function setSelectedRange(fromId, toId, on) {
+  const from = lastVisibleIds.indexOf(String(fromId));
+  const to = lastVisibleIds.indexOf(String(toId));
+  if (from < 0 || to < 0) return false;
+
+  const [lo, hi] = from < to ? [from, to] : [to, from];
+
+  return applyToIds(lastVisibleIds.slice(lo, hi + 1), on);
+}
+
+/** Select all / none for the rows the search shows (first rows only, up to the limit). Returns true if capped. */
+export function setAllVisibleSelected(on) {
+  return applyToIds(lastVisibleIds, on);
+}
+
+let routingLocked = false;
+
+/** Locks the table and bulk bar while a bulk run is in progress. */
+export function setRoutingLocked(on) {
+  routingLocked = on;
+}
+
+function renderSelectionUi(els) {
+  const selectedVisible = lastVisibleIds.filter((id) => selectedIds.has(id)).length;
+  const all = els.routingSelectAll;
+
+  all.checked = lastVisibleIds.length > 0 && selectedVisible === lastVisibleIds.length;
+  all.indeterminate = selectedVisible > 0 && selectedVisible < lastVisibleIds.length;
+  all.title = `Selects up to ${BULK_MAX_CLIENTS} clients`;
+
+  const total = selectedIds.size;
+  const hiddenCount = total - selectedVisible;
+
+  els.bulkBar.hidden = total === 0;
+  els.bulkCount.textContent = hiddenCount > 0
+    ? `${total} of ${BULK_MAX_CLIENTS} selected (${hiddenCount} hidden by search)`
+    : `${total} of ${BULK_MAX_CLIENTS} selected`;
+}
 
 function loadClientList() {
   try {
@@ -634,10 +721,20 @@ function updateRoutingMeta(els, cache, extra = "") {
 }
 
 export function setRoutingControlsDisabled(els, on) {
-  els.btnRefreshRouting.disabled = on || routingRefreshActive;
+  const off = on || routingRefreshActive || routingLocked;
+  els.btnRefreshRouting.disabled = off;
+  els.routingSelectAll.disabled = routingLocked;
+
+  for (const btn of els.bulkBar.querySelectorAll("button")) {
+    btn.disabled = off;
+  }
+
+  for (const box of els.routingBody.querySelectorAll("[data-select-client]")) {
+    box.disabled = routingLocked;
+  }
 
   for (const btn of els.routingBody.querySelectorAll("button")) {
-    btn.disabled = on || routingRefreshActive || btn.hasAttribute("data-arm-unavailable");
+    btn.disabled = off || btn.hasAttribute("data-arm-unavailable");
   }
 }
 
@@ -736,12 +833,17 @@ export function renderRoutingTable(els) {
   renderClientSource(els);
   renderAbStatus(els);
 
+  const known = new Set(ids.map(String));
+  for (const id of [...selectedIds]) if (!known.has(id)) selectedIds.delete(id);
+
   if (!ids.length) {
     els.routingEmpty.hidden = false;
     els.routingEmpty.textContent = "No clients to show. Click Refresh all to load clients from Marketplace.";
     els.routingTable.hidden = true;
     els.routingBody.innerHTML = "";
     els.routingSearchCount.textContent = "";
+    lastVisibleIds = [];
+    renderSelectionUi(els);
 
     return;
   }
@@ -749,12 +851,14 @@ export function renderRoutingTable(els) {
   const query = els.routingSearch.value.trim();
   const visibleIds = filterClientIds(sortedClientIds(ids, cache, elAgents), cache, query, elAgents);
   els.routingSearchCount.textContent = query ? `${visibleIds.length} of ${ids.length} clients` : "";
+  lastVisibleIds = visibleIds.map(String);
 
   if (!visibleIds.length) {
     els.routingEmpty.hidden = false;
     els.routingEmpty.textContent = `No clients match "${query}".`;
     els.routingTable.hidden = true;
     els.routingBody.innerHTML = "";
+    renderSelectionUi(els);
 
     return;
   }
@@ -796,7 +900,8 @@ export function renderRoutingTable(els) {
       : escapeHtml(clientId);
 
     return `
-          <tr data-client-id="${escapeHtml(clientId)}"${highRisk ? ' class="high-risk"' : ""}>
+          <tr data-client-id="${escapeHtml(clientId)}" class="${[highRisk ? "high-risk" : "", selectedIds.has(String(clientId)) ? "is-selected" : ""].join(" ").trim()}">
+            <td class="select-cell"><input type="checkbox" data-select-client="${escapeHtml(clientId)}" aria-label="Select client ${escapeHtml(clientId)}"${selectedIds.has(String(clientId)) ? " checked" : ""} /></td>
             <td class="mono">${idMarkup}</td>
             <td class="note-cell">${noteMarkup}</td>
             <td class="mono cell-phone">${escapeHtml(phone)}</td>
@@ -813,6 +918,7 @@ export function renderRoutingTable(els) {
         `;
   }).join("");
 
+  renderSelectionUi(els);
   setRoutingControlsDisabled(els, false);
 }
 

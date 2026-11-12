@@ -1,10 +1,12 @@
-import { BEARER_TOKEN_STORAGE, CONFIG, EL_KEY_STORAGE } from "./config.js";
+import { BEARER_TOKEN_STORAGE, BULK_MAX_CLIENTS, BULK_PAUSE_MS, CONFIG, EL_KEY_STORAGE } from "./config.js";
 import { bindStoredSecret } from "./credentials.js";
 import { assignArm, getPhoneNumberStatus, importElevenlabs, switchPhoneProvider } from "./api.js";
 import { renderResults } from "./results.js";
 import {
   applyResultsToRoutingCache,
   armLabel,
+  clearSelection,
+  getSelectedClientIds,
   loadRoutingCache,
   providerLabel,
   refreshServerStatus,
@@ -14,8 +16,12 @@ import {
   renderRoutingTable,
   resolveArm,
   routingEntryFor,
+  setAllVisibleSelected,
   setRoutingControlsDisabled,
+  setRoutingLocked,
   setRoutingSort,
+  setSelectedRange,
+  toggleSelected,
   showStaleServerStatus,
   stopRoutingRefresh,
 } from "./routing.js";
@@ -61,6 +67,9 @@ const els = {
   routingTable: document.getElementById("routingTable"),
   routingBody: document.getElementById("routingBody"),
   routingSearch: document.getElementById("routingSearch"),
+  routingSelectAll: document.getElementById("routingSelectAll"),
+  bulkBar: document.getElementById("bulkBar"),
+  bulkCount: document.getElementById("bulkCount"),
   routingSearchCount: document.getElementById("routingSearchCount"),
   elApiKey: document.getElementById("elApiKey"),
 };
@@ -253,6 +262,141 @@ async function runSwitch() {
     els.forwardVoice.checked,
     twilioOverride(),
   );
+}
+
+const bulkUi = {
+  box: document.getElementById("bulkProgress"),
+  title: document.getElementById("bulkProgressTitle"),
+  detail: document.getElementById("bulkProgressDetail"),
+  fill: document.getElementById("bulkProgressFill"),
+  stop: document.getElementById("bulkStop"),
+};
+let bulkStopRequested = false;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function showBulkProgress(title, done, total, detail) {
+  bulkUi.box.hidden = false;
+  bulkUi.title.textContent = title;
+  bulkUi.detail.textContent = `${done} of ${total} done · ${total - done} remaining${detail ? ` · ${detail}` : ""}`;
+  bulkUi.fill.style.width = `${(done / total) * 100}%`;
+}
+
+/** Waits between requests, counting down in the progress bar. Returns early if Stop was pressed. */
+async function bulkPause(title, done, total) {
+  for (let left = BULK_PAUSE_MS; left > 0 && !bulkStopRequested; left -= 250) {
+    showBulkProgress(title, done, total, `next in ${(left / 1000).toFixed(1)}s`);
+    await sleep(Math.min(250, left));
+  }
+}
+
+/**
+ * Runs one request per client, in order, with a pause between them (what you would do by hand).
+ * `step(clientId)` resolves to the result rows or throws. A 429 or Stop ends the run; clients that
+ * were not done stay selected so you can run them again.
+ */
+async function runBulk(title, ids, step, { onRows } = {}) {
+  clearBanner();
+  bulkStopRequested = false;
+  bulkUi.stop.disabled = false;
+  setRoutingLocked(true);
+  setBusy(true);
+
+  const rows = [];
+  let done = 0;
+  let endedBy = "";
+
+  try {
+    for (const id of ids) {
+      if (bulkStopRequested) {
+        endedBy = "stopped";
+        break;
+      }
+
+      showBulkProgress(title, done, ids.length, `client ${id}…`);
+
+      try {
+        const batch = await step(id);
+        rows.push(...batch);
+        if (onRows) onRows(batch);
+        if (!batch.some((row) => String(row.status).toLowerCase() === "error")) toggleSelected(id, false);
+      } catch (err) {
+        const message = err.message || String(err);
+        rows.push({ client_id: id, status: "error", reason: message });
+
+        if (/^HTTP 429/.test(message)) {
+          endedBy = "rate limit";
+          break;
+        }
+      }
+
+      done += 1;
+      if (done < ids.length) await bulkPause(title, done, ids.length);
+    }
+  } finally {
+    bulkUi.box.hidden = true;
+    setRoutingLocked(false);
+    setBusy(false);
+    renderRoutingTable(els);
+  }
+
+  renderResults(els, { action: title, results: rows });
+
+  const failed = rows.filter((row) => String(row.status).toLowerCase() === "error").length;
+  const left = ids.length - done;
+
+  if (endedBy) {
+    showBanner("error", `Stopped (${endedBy}) after ${done} of ${ids.length}. ${left} left, still selected.${failed ? ` ${failed} failed.` : ""}`);
+  } else if (failed) {
+    showBanner("error", `Finished ${ids.length}: ${failed} failed (still selected).`);
+  } else {
+    showBanner("ok", `Done: ${ids.length} client(s).`);
+  }
+}
+
+function runBulkProvider(ids, provider) {
+  const twilio = twilioOverride();
+
+  return runBulk(
+    `Switching to ${provider}`,
+    ids,
+    async (id) => {
+      const data = await switchPhoneProvider(readAuth(), [id], provider, els.forwardVoice.checked, twilio);
+
+      return Array.isArray(data?.results) ? data.results : [];
+    },
+    { onRows: (batch) => applyResultsToRoutingCache(els, { results: batch }) },
+  );
+}
+
+async function runBulkArm(ids, target) {
+  try {
+    if (target === "ab") {
+      const { ab } = await refreshServerStatus(els, readAuth());
+
+      if (ab.state === "down") {
+        throw new Error(`Router AB server is down (${ab.detail}). Moving clients to Router AB is off until it is back.`);
+      }
+    }
+
+    const resolved = resolveArm(ids, target);
+    if (resolved.error) throw new Error(resolved.error);
+
+    await runBulk(
+      `Moving to ${armLabel(target)}`,
+      ids,
+      async (id) => {
+        const data = await assignArm(readAuth(), [id], resolved.arm, false);
+
+        return Array.isArray(data?.results) ? data.results : [];
+      },
+    );
+
+    const elError = await refreshElAgents(els, els.elApiKey.value.trim());
+    if (elError) showBanner("info", `Moved, but the ElevenLabs data was not refreshed: ${elError}`);
+  } catch (err) {
+    showBanner("error", err.message || String(err));
+  }
 }
 
 async function runRowSwitch(clientId, provider) {
@@ -529,6 +673,18 @@ els.confirmOk.addEventListener("click", () => {
     return;
   }
 
+  if (pending.type === "bulk") {
+    runBulkProvider(pending.clientIds, pending.provider).catch((err) => showBanner("error", err.message || String(err)));
+
+    return;
+  }
+
+  if (pending.type === "bulkArm") {
+    runBulkArm(pending.clientIds, pending.target);
+
+    return;
+  }
+
   withUi(runSwitch);
 });
 
@@ -556,6 +712,87 @@ els.routingTable.querySelector("thead").addEventListener("click", (event) => {
 
   setRoutingSort(th.getAttribute("data-sort"));
   renderRoutingTable(els);
+});
+
+// Row checkboxes. Shift-click ticks (or unticks) everything between this row and the last one clicked.
+let lastCheckedId = null;
+
+els.routingBody.addEventListener("click", (event) => {
+  const box = event.target.closest("[data-select-client]");
+  if (!box) return;
+
+  const id = box.getAttribute("data-select-client");
+
+  let capped = false;
+
+  if (event.shiftKey && lastCheckedId !== null) {
+    capped = setSelectedRange(lastCheckedId, id, box.checked);
+  } else {
+    capped = !toggleSelected(id, box.checked);
+  }
+
+  if (capped) showBanner("info", `You can select at most ${BULK_MAX_CLIENTS} clients at a time.`);
+
+  lastCheckedId = id;
+  renderRoutingTable(els);
+});
+
+els.routingSelectAll.addEventListener("change", () => {
+  if (setAllVisibleSelected(els.routingSelectAll.checked)) {
+    showBanner("info", `Selected the first ${BULK_MAX_CLIENTS}. You can select at most ${BULK_MAX_CLIENTS} clients at a time.`);
+  }
+
+  renderRoutingTable(els);
+});
+
+bulkUi.stop.addEventListener("click", () => {
+  bulkStopRequested = true;
+  bulkUi.stop.disabled = true;
+});
+
+document.getElementById("bulkClear").addEventListener("click", () => {
+  clearSelection();
+  renderRoutingTable(els);
+});
+
+els.bulkBar.addEventListener("click", (event) => {
+  const providerBtn = event.target.closest("[data-bulk-provider]");
+  const armBtn = event.target.closest("[data-bulk-arm]");
+  if (!providerBtn && !armBtn) return;
+
+  const ids = getSelectedClientIds();
+
+  try {
+    if (!ids.length) throw new Error("Select at least one client");
+    if (ids.length > BULK_MAX_CLIENTS) throw new Error(`Select at most ${BULK_MAX_CLIENTS} clients (${ids.length} selected)`);
+
+    if (providerBtn) {
+      twilioOverride();
+      const provider = providerBtn.getAttribute("data-bulk-provider");
+
+      setConfirm({
+        title: "Switch live provider?",
+        text: `Switch ${ids.length} selected client(s) to "${provider}", one at a time with a short pause between. This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`,
+        okLabel: "Switch now",
+      });
+      pendingSwitch = { type: "bulk", clientIds: ids, provider };
+    } else {
+      const target = armBtn.getAttribute("data-bulk-arm");
+      const resolved = resolveArm(ids, target);
+      if (resolved.error) throw new Error(resolved.error);
+
+      setConfirm({
+        title: "Move to arm?",
+        text: `Move ${ids.length} selected client(s) to ${armLabel(target)} (${resolved.arm}), one at a time with a short pause between. This changes the agent and environment on their live ElevenLabs numbers.`,
+        okLabel: "Move now",
+      });
+      pendingSwitch = { type: "bulkArm", clientIds: ids, target };
+    }
+
+    els.confirmDialog.showModal();
+  } catch (err) {
+    showBanner("error", err.message || String(err));
+  }
 });
 
 els.routingSearch.addEventListener("input", () => renderRoutingTable(els));

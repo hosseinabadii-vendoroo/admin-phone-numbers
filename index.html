@@ -85,11 +85,26 @@
         </div>
         <div class="routing-source" id="routingSource" role="status" hidden></div>
         <div class="routing-source" id="abStatus" role="status" hidden></div>
+        <div class="bulk-bar" id="bulkBar" role="toolbar" aria-label="Bulk actions for selected clients" hidden>
+          <span class="bulk-count" id="bulkCount" aria-live="polite"></span>
+          <div class="bulk-group" role="group" aria-label="Voice provider">
+            <span class="bulk-label">Provider</span>
+            <button type="button" class="btn-warn" data-bulk-provider="elevenlabs">ElevenLabs</button>
+            <button type="button" class="btn-warn" data-bulk-provider="vapi">Vapi</button>
+          </div>
+          <div class="bulk-group" role="group" aria-label="ElevenLabs agent">
+            <span class="bulk-label">Agent</span>
+            <button type="button" class="btn-warn" data-bulk-arm="control">Router</button>
+            <button type="button" class="btn-warn" data-bulk-arm="ab">Router AB</button>
+          </div>
+          <button type="button" class="btn-ghost" id="bulkClear">Clear</button>
+        </div>
         <div class="table-wrap" id="routingPanel">
           <div class="empty" id="routingEmpty">No clients to show. Click Refresh all to load clients from Marketplace.</div>
           <table id="routingTable" hidden>
             <thead>
               <tr>
+                <th class="select-cell"><input type="checkbox" id="routingSelectAll" aria-label="Select all shown clients" /></th>
                 <th data-sort="client" class="th-sort" aria-sort="ascending" title="Sort by client">Client</th>
                 <th>Company Name</th>
                 <th>Phone</th>
@@ -295,6 +310,15 @@
       <button class="btn-warn" id="confirmOk" type="button">Switch now</button>
     </div>
   </dialog>
+
+  <div class="bulk-progress" id="bulkProgress" role="status" aria-live="polite" hidden>
+    <div class="bulk-progress-text">
+      <strong id="bulkProgressTitle"></strong>
+      <span id="bulkProgressDetail"></span>
+    </div>
+    <div class="bulk-progress-track"><div class="bulk-progress-fill" id="bulkProgressFill"></div></div>
+    <button type="button" class="btn-ghost" id="bulkStop">Stop after this one</button>
+  </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
