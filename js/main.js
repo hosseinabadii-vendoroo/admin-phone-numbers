@@ -16,7 +16,7 @@ import {
   renderRoutingTable,
   resolveArm,
   routingEntryFor,
-  setAllVisibleSelected,
+  toggleAllVisibleSelected,
   setRoutingControlsDisabled,
   setRoutingLocked,
   setRoutingSort,
@@ -738,7 +738,7 @@ els.routingBody.addEventListener("click", (event) => {
 });
 
 els.routingSelectAll.addEventListener("change", () => {
-  if (setAllVisibleSelected(els.routingSelectAll.checked)) {
+  if (toggleAllVisibleSelected()) {
     showBanner("info", `Selected the first ${BULK_MAX_CLIENTS}. You can select at most ${BULK_MAX_CLIENTS} clients at a time.`);
   }
 

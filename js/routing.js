@@ -66,9 +66,15 @@ export function setSelectedRange(fromId, toId, on) {
   return applyToIds(lastVisibleIds.slice(lo, hi + 1), on);
 }
 
-/** Select all / none for the rows the search shows (first rows only, up to the limit). Returns true if capped. */
-export function setAllVisibleSelected(on) {
-  return applyToIds(lastVisibleIds, on);
+/**
+ * Header checkbox click: if any shown row is already selected, deselect the shown rows;
+ * otherwise select the first rows up to the limit. Returns true if capped.
+ * (The checkbox's own checked value can't be trusted: clicking an indeterminate box makes it "checked".)
+ */
+export function toggleAllVisibleSelected() {
+  const anySelected = lastVisibleIds.some((id) => selectedIds.has(id));
+
+  return applyToIds(lastVisibleIds, !anySelected);
 }
 
 let routingLocked = false;
