@@ -19,5 +19,5 @@ export const HIGH_RISK_CLIENT_IDS = new Set([
 ].map(String));
 
 /** Bulk actions: at most this many clients at once, one request each, with a pause between. */
-export const BULK_MAX_CLIENTS = 20;
-export const BULK_PAUSE_MS = 1500;
+export const BULK_MAX_CLIENTS = 50;
+export const BULK_PAUSE_MS = 500;
