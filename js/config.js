@@ -18,6 +18,8 @@ export const HIGH_RISK_CLIENT_IDS = new Set([
   950, 711, 762, 802, 1024, 883, 573, 928, 502, 572, 494, 770, 495, 672, 403,
 ].map(String));
 
-/** Bulk actions: at most this many clients at once, one request each, with a pause between. */
+/** Bulk actions: at most this many clients at once, with a pause between requests. */
 export const BULK_MAX_CLIENTS = 50;
 export const BULK_PAUSE_MS = 500;
+/** Provider switches send this many clients per request (about 0.9 s each on the server). */
+export const BULK_SWITCH_BATCH_SIZE = 25;

@@ -1,4 +1,11 @@
-import { BEARER_TOKEN_STORAGE, BULK_MAX_CLIENTS, BULK_PAUSE_MS, CONFIG, EL_KEY_STORAGE } from "./config.js";
+import {
+  BEARER_TOKEN_STORAGE,
+  BULK_MAX_CLIENTS,
+  BULK_PAUSE_MS,
+  BULK_SWITCH_BATCH_SIZE,
+  CONFIG,
+  EL_KEY_STORAGE,
+} from "./config.js";
 import { bindStoredSecret } from "./credentials.js";
 import { assignArm, getPhoneNumberStatus, importElevenlabs, switchPhoneProvider } from "./api.js";
 import { renderResults } from "./results.js";
@@ -250,18 +257,77 @@ async function runImport() {
   return importElevenlabs(readAuth(), ids, els.forwardVoice.checked, twilioOverride());
 }
 
+/**
+ * Why a client's number can't take ElevenLabs calls yet, or "" when it can. Read from a
+ * phone-number-status row: the number must be imported to ElevenLabs and have an agent.
+ * `elevenlabs_imported: null` means the server couldn't reach ElevenLabs, so it's unknown.
+ */
+function elevenlabsNotReadyReason(row) {
+  if (!row) return "No status returned for this client";
+  if (String(row.status).toLowerCase() !== "ok") return row.reason || `Status: ${row.status}`;
+  if (row.elevenlabs_imported == null) return "ElevenLabs could not be reached, so readiness is unknown";
+  if (row.elevenlabs_imported === false) return "Number is not imported to ElevenLabs";
+  if (!row.elevenlabs_agent_id) return "No agent assigned in ElevenLabs";
+
+  return "";
+}
+
+/** Extra confirm-dialog sentence for switches to ElevenLabs. */
+function elevenlabsReadyNote(provider, { single = false } = {}) {
+  if (provider !== "elevenlabs") return "";
+
+  return single
+    ? " It is checked first: if the number isn't imported to ElevenLabs or has no agent, nothing changes."
+    : " Clients whose number isn't imported to ElevenLabs or has no agent are checked first and skipped.";
+}
+
+/**
+ * Re-reads phone-number-status for `ids` and splits them into clients ready for ElevenLabs and
+ * skipped rows (status "skipped", with the reason). The switch endpoint doesn't check this, so
+ * every switch to ElevenLabs from this page goes through here first.
+ */
+async function checkElevenlabsReady(ids, twilio) {
+  const data = await getPhoneNumberStatus(readAuth(), ids, twilio);
+  const rows = Array.isArray(data?.results) ? data.results : [];
+  applyResultsToRoutingCache(els, { results: rows });
+
+  const byId = new Map(rows.map((row) => [Number(row.client_id), row]));
+  const ready = [];
+  const skipped = [];
+
+  for (const id of ids) {
+    const row = byId.get(Number(id));
+    const reason = elevenlabsNotReadyReason(row);
+
+    if (reason) {
+      // local_skip: made by this page, not the server, so it must not overwrite the routing cache.
+      skipped.push({ client_id: id, phone_number: row?.phone_number ?? null, status: "skipped", reason, local_skip: true });
+    } else {
+      ready.push(id);
+    }
+  }
+
+  return { ready, skipped };
+}
+
 async function runSwitch() {
   clearBanner();
   const ids = parseClientIds();
   if (!ids.length) throw new Error("Enter at least one client ID");
 
-  return switchPhoneProvider(
-    readAuth(),
-    ids,
-    selectedProvider(),
-    els.forwardVoice.checked,
-    twilioOverride(),
-  );
+  const provider = selectedProvider();
+  const twilio = twilioOverride();
+  let toSwitch = ids;
+  let skipped = [];
+
+  if (provider === "elevenlabs") {
+    ({ ready: toSwitch, skipped } = await checkElevenlabsReady(ids, twilio));
+    if (!toSwitch.length) return { action: "switch_phone_provider", provider, results: skipped };
+  }
+
+  const data = await switchPhoneProvider(readAuth(), toSwitch, provider, els.forwardVoice.checked, twilio);
+
+  return { ...data, results: [...skipped, ...(Array.isArray(data?.results) ? data.results : [])] };
 }
 
 const bulkUi = {
@@ -291,38 +357,47 @@ async function bulkPause(title, done, total) {
 }
 
 /**
- * Runs one request per client, in order, with a pause between them (what you would do by hand).
- * `step(clientId)` resolves to the result rows or throws. A 429 or Stop ends the run; clients that
- * were not done stay selected so you can run them again.
+ * Runs the clients in requests of `batchSize`, in order, with a pause between requests.
+ * `step(chunk)` gets an array of client IDs and resolves to the result rows, or throws. A 429 or
+ * Stop ends the run; clients that were not done, failed, or are in `skipped` stay selected so you
+ * can run them again.
  */
-async function runBulk(title, ids, step, { onRows } = {}) {
+async function runBulk(title, ids, step, { onRows, batchSize = 1, skipped = [] } = {}) {
   clearBanner();
   bulkStopRequested = false;
   bulkUi.stop.disabled = false;
   setRoutingLocked(true);
   setBusy(true);
 
-  const rows = [];
+  const rows = [...skipped];
   let done = 0;
   let endedBy = "";
 
   try {
-    for (const id of ids) {
+    for (let start = 0; start < ids.length; start += batchSize) {
       if (bulkStopRequested) {
         endedBy = "stopped";
         break;
       }
 
-      showBulkProgress(title, done, ids.length, `client ${id}…`);
+      const chunk = ids.slice(start, start + batchSize);
+      const label = chunk.length === 1 ? `client ${chunk[0]}…` : `${chunk.length} clients…`;
+      showBulkProgress(title, done, ids.length, label);
 
       try {
-        const batch = await step(id);
+        const batch = await step(chunk);
         rows.push(...batch);
         if (onRows) onRows(batch);
-        if (!batch.some((row) => String(row.status).toLowerCase() === "error")) toggleSelected(id, false);
+
+        for (const id of chunk) {
+          const failed = batch.some(
+            (row) => Number(row.client_id) === Number(id) && String(row.status).toLowerCase() === "error",
+          );
+          if (!failed) toggleSelected(id, false);
+        }
       } catch (err) {
         const message = err.message || String(err);
-        rows.push({ client_id: id, status: "error", reason: message });
+        rows.push(...chunk.map((id) => ({ client_id: id, status: "error", reason: message })));
 
         if (/^HTTP 429/.test(message)) {
           endedBy = "rate limit";
@@ -330,7 +405,7 @@ async function runBulk(title, ids, step, { onRows } = {}) {
         }
       }
 
-      done += 1;
+      done += chunk.length;
       if (done < ids.length) await bulkPause(title, done, ids.length);
     }
   } finally {
@@ -344,28 +419,58 @@ async function runBulk(title, ids, step, { onRows } = {}) {
 
   const failed = rows.filter((row) => String(row.status).toLowerCase() === "error").length;
   const left = ids.length - done;
+  const skippedNote = skipped.length
+    ? ` ${skipped.length} skipped, not ready on ElevenLabs (still selected, reasons in the results).`
+    : "";
 
   if (endedBy) {
-    showBanner("error", `Stopped (${endedBy}) after ${done} of ${ids.length}. ${left} left, still selected.${failed ? ` ${failed} failed.` : ""}`);
+    showBanner("error", `Stopped (${endedBy}) after ${done} of ${ids.length}. ${left} left, still selected.${failed ? ` ${failed} failed.` : ""}${skippedNote}`);
   } else if (failed) {
-    showBanner("error", `Finished ${ids.length}: ${failed} failed (still selected).`);
+    showBanner("error", `Finished ${ids.length}: ${failed} failed (still selected).${skippedNote}`);
+  } else if (skipped.length) {
+    showBanner("info", `Done: ${ids.length} client(s) switched.${skippedNote}`);
   } else {
     showBanner("ok", `Done: ${ids.length} client(s).`);
   }
 }
 
-function runBulkProvider(ids, provider) {
+async function runBulkProvider(ids, provider) {
   const twilio = twilioOverride();
+  const title = `Switching to ${provider}`;
+  let toSwitch = ids;
+  let skipped = [];
 
-  return runBulk(
-    `Switching to ${provider}`,
-    ids,
-    async (id) => {
-      const data = await switchPhoneProvider(readAuth(), [id], provider, els.forwardVoice.checked, twilio);
+  if (provider === "elevenlabs") {
+    clearBanner();
+    setBusy(true);
+    try {
+      ({ ready: toSwitch, skipped } = await checkElevenlabsReady(ids, twilio));
+    } finally {
+      setBusy(false);
+      renderRoutingTable(els);
+    }
+
+    if (!toSwitch.length) {
+      renderResults(els, { action: title, results: skipped });
+      showBanner("error", `None of the ${ids.length} selected client(s) is ready on ElevenLabs. Nothing was switched; reasons are in the results.`);
+
+      return;
+    }
+  }
+
+  await runBulk(
+    title,
+    toSwitch,
+    async (chunk) => {
+      const data = await switchPhoneProvider(readAuth(), chunk, provider, els.forwardVoice.checked, twilio);
 
       return Array.isArray(data?.results) ? data.results : [];
     },
-    { onRows: (batch) => applyResultsToRoutingCache(els, { results: batch }) },
+    {
+      onRows: (batch) => applyResultsToRoutingCache(els, { results: batch }),
+      batchSize: BULK_SWITCH_BATCH_SIZE,
+      skipped,
+    },
   );
 }
 
@@ -385,8 +490,8 @@ async function runBulkArm(ids, target) {
     await runBulk(
       `Moving to ${armLabel(target)}`,
       ids,
-      async (id) => {
-        const data = await assignArm(readAuth(), [id], resolved.arm, false);
+      async (chunk) => {
+        const data = await assignArm(readAuth(), chunk, resolved.arm, false);
 
         return Array.isArray(data?.results) ? data.results : [];
       },
@@ -401,14 +506,14 @@ async function runBulkArm(ids, target) {
 
 async function runRowSwitch(clientId, provider) {
   clearBanner();
+  const twilio = twilioOverride();
 
-  return switchPhoneProvider(
-    readAuth(),
-    [Number(clientId)],
-    provider,
-    els.forwardVoice.checked,
-    twilioOverride(),
-  );
+  if (provider === "elevenlabs") {
+    const { skipped } = await checkElevenlabsReady([Number(clientId)], twilio);
+    if (skipped.length) throw new Error(`Client ${clientId} was not switched: ${skipped[0].reason}.`);
+  }
+
+  return switchPhoneProvider(readAuth(), [Number(clientId)], provider, els.forwardVoice.checked, twilio);
 }
 
 /**
@@ -469,13 +574,17 @@ async function withUi(fn) {
   setBusy(true);
   try {
     const data = await fn();
+    const results = Array.isArray(data?.results) ? data.results : [];
     renderResults(els, data);
-    applyResultsToRoutingCache(els, data);
-    const n = Array.isArray(data?.results) ? data.results.length : 0;
-    const errors = (data?.results || []).filter((r) => String(r.status).toLowerCase() === "error").length;
+    applyResultsToRoutingCache(els, { ...data, results: results.filter((r) => !r.local_skip) });
+    const n = results.length;
+    const errors = results.filter((r) => String(r.status).toLowerCase() === "error").length;
+    const notReady = results.filter((r) => r.local_skip).length;
 
     if (errors) {
       showBanner("error", `Completed with ${errors} error(s) out of ${n} result(s).`);
+    } else if (notReady) {
+      showBanner("info", `Done — ${n - notReady} switched, ${notReady} skipped: not ready on ElevenLabs (reasons in the results).`);
     } else {
       showBanner("ok", `Done — ${n} result(s).`);
     }
@@ -515,7 +624,7 @@ els.btnSwitch.addEventListener("click", () => {
     const provider = selectedProvider();
     setConfirm({
       title: "Switch live provider?",
-      text: `Switch ${ids.length} client(s) to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`,
+      text: `Switch ${ids.length} client(s) to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).${elevenlabsReadyNote(provider)}`,
       okLabel: "Switch now",
     });
     pendingSwitch = { type: "batch" };
@@ -643,7 +752,7 @@ els.routingBody.addEventListener("click", (event) => {
 
   setConfirm({
     title: "Switch live provider?",
-    text: `Switch client ${clientId} from "${currentLabel}" to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`,
+    text: `Switch client ${clientId} from "${currentLabel}" to "${provider}". This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).${elevenlabsReadyNote(provider, { single: true })}`,
     okLabel: "Switch now",
   });
   pendingSwitch = { type: "row", clientId, provider };
@@ -772,7 +881,7 @@ els.bulkBar.addEventListener("click", (event) => {
 
       setConfirm({
         title: "Switch live provider?",
-        text: `Switch ${ids.length} selected client(s) to "${provider}", one at a time with a short pause between. This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).`,
+        text: `Switch ${ids.length} selected client(s) to "${provider}", ${BULK_SWITCH_BATCH_SIZE} per request with a short pause between. This updates live Twilio VoiceUrl + SmsUrl (+ fallbacks).${elevenlabsReadyNote(provider)}`,
         okLabel: "Switch now",
       });
       pendingSwitch = { type: "bulk", clientIds: ids, provider };
